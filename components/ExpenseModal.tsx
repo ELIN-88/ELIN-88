@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Camera, CreditCard, Banknote, Percent, Info, Trash2 } from 'lucide-react';
+import { X, Save, Camera, CreditCard, Banknote, Percent, Info, Trash2, ReceiptText } from 'lucide-react';
 import { ExpenseItem, ExpenseCategory } from '../types';
 
 interface ExpenseModalProps {
@@ -44,7 +44,6 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
     }
   }, [initialExpense, isOpen]);
 
-  // 當日幣金額或稅金切換或匯率變動時更新台幣
   useEffect(() => {
     const jpy = formData.amountJpy || 0;
     const finalJpy = formData.taxIncluded ? jpy : Math.round(jpy * 1.1);
@@ -81,16 +80,15 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white w-full max-w-md rounded-[32px] max-h-[90vh] overflow-y-auto shadow-2xl border-4 border-[#2D3436]">
         <div className="sticky top-0 bg-white border-b-4 border-[#2D3436] p-5 flex justify-between items-center z-10">
-          <h2 className="text-xl font-black text-gray-800 italic flex items-center gap-2 tracking-tighter">
+          <h2 className="text-xl font-black text-gray-800 italic flex items-center gap-2 tracking-tighter uppercase">
             <ReceiptText size={22} className="text-[#FF4747]"/> 記下一筆支出
           </h2>
-          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full border-2 border-[#2D3436] comic-button">
+          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full border-2 border-[#2D3436] comic-button transition-transform active:scale-90">
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* 金額輸入 - 特大號 */}
           <div className="bg-[#FFFBEB] p-4 rounded-2xl border-2 border-[#2D3436] shadow-inner">
             <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 italic">日幣金額 (JPY)</label>
             <div className="flex items-center gap-2">
@@ -98,7 +96,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
               <input 
                 required 
                 type="number" 
-                className="w-full bg-transparent text-3xl font-black focus:outline-none" 
+                className="w-full bg-transparent text-3xl font-black focus:outline-none placeholder-slate-200" 
                 value={formData.amountJpy || ''} 
                 onChange={e => setFormData({...formData, amountJpy: parseFloat(e.target.value)})} 
                 placeholder="0"
@@ -109,9 +107,9 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
               <button 
                 type="button" 
                 onClick={() => setFormData({...formData, taxIncluded: !formData.taxIncluded})}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full border-2 font-black text-[9px] transition-all ${formData.taxIncluded ? 'bg-emerald-500 text-white border-slate-900' : 'bg-orange-500 text-white border-slate-900'}`}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full border-2 font-black text-[9px] transition-all shadow-sm active:scale-95 ${formData.taxIncluded ? 'bg-emerald-500 text-white border-slate-900' : 'bg-orange-500 text-white border-slate-900'}`}
               >
-                {formData.taxIncluded ? <Percent size={10}/> : <Percent size={10}/>}
+                <Percent size={10}/>
                 {formData.taxIncluded ? '含稅價' : '未稅 (+10%)'}
               </button>
             </div>
@@ -120,7 +118,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 italic">項目名稱 *</label>
-              <input required className="w-full px-4 py-3 bg-gray-50 border-2 border-[#2D3436] rounded-xl font-bold focus:outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="例: 炸雞君" />
+              <input required className="w-full px-4 py-3 bg-gray-50 border-2 border-[#2D3436] rounded-xl font-bold focus:outline-none focus:border-[#4CB9E7]" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="例: 炸雞君" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 italic">日期</label>
@@ -136,7 +134,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
                   key={cat} 
                   type="button" 
                   onClick={() => setFormData({...formData, category: cat})}
-                  className={`py-2 rounded-lg border-2 font-black text-[10px] transition-all ${formData.category === cat ? 'bg-[#FFD93D] border-[#2D3436] shadow-[2px_2px_0px_#2D3436]' : 'bg-white border-slate-200 text-slate-400'}`}
+                  className={`py-2 rounded-lg border-2 font-black text-[10px] transition-all active:scale-95 ${formData.category === cat ? 'bg-[#FFD93D] border-[#2D3436] shadow-[2px_2px_0px_#2D3436]' : 'bg-white border-slate-200 text-slate-400'}`}
                 >
                   {cat}
                 </button>
@@ -151,14 +149,14 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
                 <button 
                   type="button" 
                   onClick={() => setFormData({...formData, paymentMethod: '現金'})}
-                  className={`flex-1 py-3 rounded-xl border-2 font-black text-[10px] flex items-center justify-center gap-1.5 transition-all ${formData.paymentMethod === '現金' ? 'bg-[#4CB9E7] text-white border-slate-900' : 'bg-white text-slate-300 border-slate-200'}`}
+                  className={`flex-1 py-3 rounded-xl border-2 font-black text-[10px] flex items-center justify-center gap-1.5 transition-all active:scale-95 ${formData.paymentMethod === '現金' ? 'bg-[#4CB9E7] text-white border-slate-900 shadow-sm' : 'bg-white text-slate-300 border-slate-200'}`}
                 >
                   <Banknote size={14}/> 現金
                 </button>
                 <button 
                   type="button" 
                   onClick={() => setFormData({...formData, paymentMethod: '信用卡'})}
-                  className={`flex-1 py-3 rounded-xl border-2 font-black text-[10px] flex items-center justify-center gap-1.5 transition-all ${formData.paymentMethod === '信用卡' ? 'bg-[#FF4747] text-white border-slate-900' : 'bg-white text-slate-300 border-slate-200'}`}
+                  className={`flex-1 py-3 rounded-xl border-2 font-black text-[10px] flex items-center justify-center gap-1.5 transition-all active:scale-95 ${formData.paymentMethod === '信用卡' ? 'bg-[#FF4747] text-white border-slate-900 shadow-sm' : 'bg-white text-slate-300 border-slate-200'}`}
                 >
                   <CreditCard size={14}/> 刷卡
                 </button>
@@ -169,7 +167,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
               <button 
                 type="button" 
                 onClick={() => fileInputRef.current?.click()}
-                className={`w-full py-3 rounded-xl border-2 border-dashed font-black text-[10px] flex items-center justify-center gap-1.5 transition-all ${formData.photo ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-50 border-slate-300 text-slate-400'}`}
+                className={`w-full py-3 rounded-xl border-2 border-dashed font-black text-[10px] flex items-center justify-center gap-1.5 transition-all active:scale-95 ${formData.photo ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-50 border-slate-300 text-slate-400'}`}
               >
                 <Camera size={14}/> {formData.photo ? '已拍下' : '拍照存檔'}
               </button>
@@ -178,12 +176,12 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
           </div>
 
           {formData.photo && (
-            <div className="relative w-full h-32 rounded-xl overflow-hidden border-2 border-[#2D3436]">
-              <img src={formData.photo} className="w-full h-full object-cover" />
+            <div className="relative w-full h-32 rounded-xl overflow-hidden border-2 border-[#2D3436] animate-fadeIn">
+              <img src={formData.photo} alt="receipt" className="w-full h-full object-cover" />
               <button 
                 type="button" 
                 onClick={() => setFormData({...formData, photo: ''})}
-                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full shadow-md"
+                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full shadow-md active:scale-90"
               >
                 <Trash2 size={12}/>
               </button>
@@ -191,9 +189,9 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
           )}
 
           <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 italic">備註</label>
+            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 italic uppercase">備註</label>
             <textarea 
-              className="w-full px-4 py-3 bg-gray-50 border-2 border-[#2D3436] rounded-xl font-bold focus:outline-none text-xs" 
+              className="w-full px-4 py-3 bg-gray-50 border-2 border-[#2D3436] rounded-xl font-bold focus:outline-none focus:border-[#4CB9E7] text-xs" 
               rows={2} 
               value={formData.note} 
               onChange={e => setFormData({...formData, note: e.target.value})} 
@@ -201,7 +199,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
             />
           </div>
 
-          <button type="submit" className="w-full py-5 bg-[#FFD93D] text-[#2D3436] rounded-[24px] font-black shadow-[4px_4px_0px_#2D3436] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none border-2 border-[#2D3436] transition-all">
+          <button type="submit" className="w-full py-5 bg-[#FFD93D] text-[#2D3436] rounded-[24px] font-black shadow-[4px_4px_0px_#2D3436] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none border-2 border-[#2D3436] transition-all uppercase italic">
             <Save size={20} /> 儲存支出
           </button>
         </form>
@@ -211,12 +209,3 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSave, in
 };
 
 export default ExpenseModal;
-
-const ReceiptText = ({ size, className }: { size: number, className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z" />
-    <path d="M16 8H8" />
-    <path d="M16 12H8" />
-    <path d="M13 16H8" />
-  </svg>
-);

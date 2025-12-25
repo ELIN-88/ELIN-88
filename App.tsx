@@ -16,8 +16,7 @@ import {
   ReceiptText, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, RefreshCw, CheckCircle2
 } from 'lucide-react';
 
-// 使用唯一的版本號 Key，確保資料庫清潔
-const STORAGE_PREFIX = 'okinawa_staff_v2026_stable';
+const STORAGE_PREFIX = 'okinawa_v2026_final_stable';
 const KEYS = {
   ITINERARY: `${STORAGE_PREFIX}_itinerary`,
   FOOD: `${STORAGE_PREFIX}_food`,
@@ -29,8 +28,8 @@ const evaluateExpression = (expr: string): number => {
   try {
     const sanitizedExpr = expr.replace(/[^-+*/.0-9]/g, '');
     if (!sanitizedExpr) return 0;
-    // 使用更安全的方式評估簡單運算
-    return Number(eval(sanitizedExpr)) || 0;
+    // 使用 Function 替代 eval，並加入安全處理
+    return new Function(`return ${sanitizedExpr}`)() || 0;
   } catch { return 0; }
 };
 
@@ -51,19 +50,16 @@ const App: React.FC = () => {
   const [isWeatherUpdating, setIsWeatherUpdating] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
-  // 安全讀取 LocalStorage 的輔助函數
   const getSafeStorage = <T,>(key: string, fallback: T): T => {
     try {
-      const saved = localStorage.getItem(key);
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
       if (!saved) return fallback;
       const parsed = JSON.parse(saved);
-      // 如果解析出來是空陣列且 fallback 有內容，則回退到 fallback
       if (Array.isArray(parsed) && parsed.length === 0 && Array.isArray(fallback) && fallback.length > 0) {
         return fallback;
       }
       return parsed;
     } catch (e) {
-      console.error(`Storage Error [${key}]:`, e);
       return fallback;
     }
   };
@@ -73,24 +69,27 @@ const App: React.FC = () => {
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => getSafeStorage(KEYS.EXPENSES, []));
   const [weatherForecast, setWeatherForecast] = useState<WeatherForecast[]>(() => getSafeStorage(KEYS.WEATHER, DEFAULT_WEATHER));
 
-  // 同步資料
-  useEffect(() => localStorage.setItem(KEYS.ITINERARY, JSON.stringify(itinerary)), [itinerary]);
-  useEffect(() => localStorage.setItem(KEYS.FOOD, JSON.stringify(foodItems)), [foodItems]);
-  useEffect(() => localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses)), [expenses]);
-  useEffect(() => localStorage.setItem(KEYS.WEATHER, JSON.stringify(weatherForecast)), [weatherForecast]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(KEYS.ITINERARY, JSON.stringify(itinerary));
+      localStorage.setItem(KEYS.FOOD, JSON.stringify(foodItems));
+      localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
+      localStorage.setItem(KEYS.WEATHER, JSON.stringify(weatherForecast));
+    }
+  }, [itinerary, foodItems, expenses, weatherForecast]);
 
   const activeDayPlan = useMemo(() => itinerary.find(d => d.day === selectedDay), [itinerary, selectedDay]);
   const totalExpenseJpy = useMemo(() => expenses.reduce((s, i) => s + (i.amountJpy || 0), 0), [expenses]);
   const totalExpenseTwd = useMemo(() => expenses.reduce((s, i) => s + (i.amountTwd || 0), 0), [expenses]);
 
   const handleRefreshWeather = async () => {
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+    const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
     if (!apiKey) return;
 
     setIsWeatherUpdating(true);
-    const ai = new GoogleGenAI({ apiKey });
     try {
-      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣預測。返回符合結構的 JSON: [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"建議"}]`;
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣預測。返回符合結構的 JSON: [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"穿搭建議"}]`;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -102,7 +101,7 @@ const App: React.FC = () => {
   };
 
   const updateAutoTraffic = async (targetDay: number) => {
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+    const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
     const dayPlan = itinerary.find(d => d.day === targetDay);
     if (!dayPlan || dayPlan.spots.length < 2 || !apiKey) return;
     
@@ -159,19 +158,18 @@ const App: React.FC = () => {
     <div className="min-h-screen px-3 pt-8 pb-32 font-sans max-w-lg mx-auto overflow-x-hidden selection:bg-[#FFD93D]" ref={mainContentRef}>
       <header className="mb-6 flex flex-col items-center">
         <div className="bg-[#FFD93D] px-8 py-3 rounded-[30px] comic-border rotate-[-1deg] mb-1.5 shadow-[6px_6px_0px_#2D3436]">
-          <h1 className="text-2xl font-black text-slate-900 tracking-tighter bubble-font italic uppercase">沖 繩 旅 遊 Go！</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tighter bubble-font italic uppercase text-center">沖 繩 旅 遊 Go！</h1>
         </div>
       </header>
 
       <main className="relative">
-        {/* 1. 總覽分頁 */}
         {activeTab === TabType.OVERVIEW && (
           <div className="space-y-4 pb-32 animate-fadeIn pt-4 px-1">
             <div className="comic-border p-3.5 bg-white rounded-[24px]">
               <h3 className="text-sm font-black flex items-center gap-2 mb-3 italic text-[#4CB9E7] uppercase tracking-tight"><Plane size={16} /> 航班資訊</h3>
               <div className="space-y-2">
                 <div className="bg-blue-50 p-3 rounded-xl border-[3px] border-[#2D3436]">
-                  <p className="font-black text-[#4CB9E7] text-[10px] flex justify-between">1/11 去程 FD230 <span className="text-slate-400">11:00 Check-in</span></p>
+                  <p className="font-black text-[#4CB9E7] text-[10px] flex justify-between">1/11 去程 FD230 <span className="text-slate-400 font-bold">11:00 Check-in</span></p>
                   <div className="flex justify-between items-end mt-1">
                     <span className="text-[20px] font-black tracking-tighter">13:30 - 15:55</span>
                     <div className="flex gap-1.5">
@@ -181,7 +179,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-emerald-50 p-3 rounded-xl border-[3px] border-[#2D3436]">
-                  <p className="font-black text-emerald-600 text-[10px] flex justify-between">1/14 回程 BR185 <span className="text-slate-400">17:30 Check-in</span></p>
+                  <p className="font-black text-emerald-600 text-[10px] flex justify-between">1/14 回程 BR185 <span className="text-slate-400 font-bold">17:30 Check-in</span></p>
                   <div className="flex justify-between items-end mt-1">
                     <span className="text-[20px] font-black tracking-tighter">20:20 - 21:10</span>
                     <div className="flex gap-1.5">
@@ -199,7 +197,7 @@ const App: React.FC = () => {
                   <h3 className="text-base font-black flex items-center gap-1.5 italic text-[#2D3436] bubble-font"><Hotel size={18} className="text-[#FFD93D]" /> 那霸逸之彩飯店 (Hinode)</h3>
                   <p className="text-[9px] font-black text-slate-400 mt-0.5 uppercase tracking-tighter">那霸市牧志 3-18-33 (牧志站 1min)</p>
                 </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Okinawa+Hinode+Hotel" target="_blank" className="bg-[#4CB9E7] text-white p-3 rounded-2xl border-2 border-slate-900 comic-button shadow-sm active:translate-y-0.5 transition-all"><Navigation2 size={24}/></a>
+                <a href="https://www.google.com/maps/search/?api=1&query=Okinawa+Hinode+Hotel" target="_blank" rel="noreferrer" className="bg-[#4CB9E7] text-white p-3 rounded-2xl border-2 border-slate-900 comic-button shadow-sm active:translate-y-0.5 transition-all"><Navigation2 size={24}/></a>
               </div>
               <div className="grid grid-cols-2 gap-2 text-[9px] font-black">
                 <div className="bg-rose-50 p-2 rounded-lg border-2 border-slate-900 flex items-center gap-1.5 shadow-sm"><Utensils size={12}/> 早餐 (06:30-10:00)</div>
@@ -213,7 +211,7 @@ const App: React.FC = () => {
               <h3 className="text-sm font-black flex items-center gap-2 mb-3 italic text-[#E4405F] uppercase tracking-tight"><Instagram size={18} /> 地區美食 IG 搜尋</h3>
               <div className="grid grid-cols-2 gap-2.5">
                 {foodItems.filter(f => f.type === '區域搜尋').map((food) => (
-                  <a key={food.id} href={`https://www.instagram.com/explore/tags/${encodeURIComponent(food.tags[0] + '美食')}/`} target="_blank" className="bg-white p-2.5 rounded-xl border-2 border-[#2D3436] comic-button shadow-[2.5px_2.5px_0px_#2D3436] flex flex-col items-center justify-center gap-1 active:translate-y-0.5 transition-all">
+                  <a key={food.id} href={`https://www.instagram.com/explore/tags/${encodeURIComponent(food.tags[0] + '美食')}/`} target="_blank" rel="noreferrer" className="bg-white p-2.5 rounded-xl border-2 border-[#2D3436] comic-button shadow-[2.5px_2.5px_0px_#2D3436] flex flex-col items-center justify-center gap-1 active:translate-y-0.5 transition-all">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Day {food.day}</span>
                     <span className="text-[11px] font-black text-slate-900 italic">#{food.tags[0]}美食</span>
                   </a>
@@ -234,7 +232,7 @@ const App: React.FC = () => {
                 ].map((rule, i) => (
                   <div key={i} className="bg-white/10 p-2 rounded-xl flex flex-col items-center border border-white/20">
                     <div className="mb-1">{rule.icon}</div>
-                    <span className="text-[8px] leading-none">{rule.label}</span>
+                    <span className="text-[8px] leading-none uppercase">{rule.label}</span>
                   </div>
                 ))}
               </div>
@@ -242,7 +240,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* 2. 行程分頁 */}
         {activeTab === TabType.ITINERARY && (
           <div className="space-y-4 pb-40 animate-fadeIn">
             <div className="sticky top-[-4px] z-[90] bg-[#FFFBEB]/95 backdrop-blur-md pt-3 pb-3 border-b-2 border-[#2D3436] -mx-3 px-3 shadow-sm flex items-center justify-between">
@@ -296,7 +293,7 @@ const App: React.FC = () => {
                           {spot.showQRCode && <span className="bg-purple-500 text-white px-2 py-0.5 rounded-lg border-2 border-[#2D3436] text-[8px] font-black italic flex items-center gap-1 shadow-[1.5px_1.5px_0px_#2D3436]"><QrCode size={10}/> QR 碼</span>}
                         </div>
                         <p className="text-[10px] font-bold text-gray-400 italic mt-2 leading-relaxed border-t border-slate-50 pt-2 whitespace-pre-wrap">{spot.description}</p>
-                        <a href={spot.mapUrl} target="_blank" className="bg-[#4CB9E7] text-white py-2.5 rounded-xl border-[3px] border-[#2D3436] comic-button shadow-sm flex items-center justify-center gap-2 text-[10px] font-black italic mt-3.5 uppercase active:translate-y-0.5 transition-all"><Navigation2 size={18} /> 開啟導航</a>
+                        <a href={spot.mapUrl} target="_blank" rel="noreferrer" className="bg-[#4CB9E7] text-white py-2.5 rounded-xl border-[3px] border-[#2D3436] comic-button shadow-sm flex items-center justify-center gap-2 text-[10px] font-black italic mt-3.5 uppercase active:translate-y-0.5 transition-all"><Navigation2 size={18} /> 開啟導航</a>
                       </div>
                     </div>
                   ))}
@@ -306,7 +303,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* 3. 美食分頁 */}
         {activeTab === TabType.FOOD && (
           <div className="space-y-5 pb-40 animate-fadeIn px-1">
             <div className="flex justify-between items-center px-2">
@@ -328,15 +324,14 @@ const App: React.FC = () => {
                   <p className="text-[11px] font-black text-[#FF4747] italic flex items-center gap-2"><Sparkles size={14}/> {food.recommended}</p>
                 </div>
                 <div className="flex gap-3">
-                  <a href={`https://www.instagram.com/explore/tags/${encodeURIComponent(food.tags[0] + '美食')}/`} target="_blank" className="flex-1 bg-[#E4405F] text-white py-3.5 rounded-xl border-2 border-[#2D3436] comic-button shadow-md flex items-center justify-center gap-2 text-[11px] font-black italic uppercase"><Instagram size={18}/> IG 搜尋</a>
-                  <a href={food.mapUrl} target="_blank" className="bg-[#4CB9E7] text-white px-5 rounded-xl border-2 border-[#2D3436] comic-button shadow-md flex items-center justify-center"><MapPin size={22}/></a>
+                  <a href={`https://www.instagram.com/explore/tags/${encodeURIComponent(food.tags[0] + '美食')}/`} target="_blank" rel="noreferrer" className="flex-1 bg-[#E4405F] text-white py-3.5 rounded-xl border-2 border-[#2D3436] comic-button shadow-md flex items-center justify-center gap-2 text-[11px] font-black italic uppercase"><Instagram size={18}/> IG 搜尋</a>
+                  <a href={food.mapUrl} target="_blank" rel="noreferrer" className="bg-[#4CB9E7] text-white px-5 rounded-xl border-2 border-[#2D3436] comic-button shadow-md flex items-center justify-center"><MapPin size={22}/></a>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* 4. 超市分頁 */}
         {activeTab === TabType.SUPERMARKET && (
           <div className="space-y-5 pb-40 animate-fadeIn px-1">
             <h2 className="text-lg font-black italic px-2 bubble-font tracking-tight text-[#4CB9E7] uppercase">補給 (飯店優先) 🛒</h2>
@@ -351,13 +346,12 @@ const App: React.FC = () => {
                   <div className="bg-slate-50 p-2.5 rounded-xl flex items-center gap-2 shadow-sm border border-slate-100"><Wallet size={14} className="text-[#4CB9E7]"/> {shop.paymentMethods.join('/')}</div>
                 </div>
                 <p className="text-[11px] font-bold text-slate-400 italic mb-4">{shop.description}</p>
-                <a href={shop.mapUrl} target="_blank" className="bg-[#2D3436] text-white w-full py-4 rounded-xl flex items-center justify-center gap-2 text-[11px] font-black italic comic-button border-2 border-[#2D3436] uppercase active:translate-y-0.5 transition-all shadow-md"><MapPin size={18}/> 導航至該店</a>
+                <a href={shop.mapUrl} target="_blank" rel="noreferrer" className="bg-[#2D3436] text-white w-full py-4 rounded-xl flex items-center justify-center gap-2 text-[11px] font-black italic comic-button border-2 border-[#2D3436] uppercase active:translate-y-0.5 transition-all shadow-md"><MapPin size={18}/> 導航至該店</a>
               </div>
             ))}
           </div>
         )}
 
-        {/* 5. 支出分頁 */}
         {activeTab === TabType.EXPENSES && (
           <div className="space-y-4 pb-40 animate-fadeIn px-1">
             <div className="comic-border p-6 bg-[#2D3436] text-white rounded-[36px] shadow-[8px_8px_0px_#FFD93D]">
@@ -377,7 +371,7 @@ const App: React.FC = () => {
                   <div key={item.id} className="comic-border p-4 bg-white rounded-[24px] flex justify-between items-center transition-all active:scale-[0.98] group" onClick={() => { setEditingExpense(item); setIsExpenseModalOpen(true); }}>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase active:scale-95 transition-transform">[{item.category}]</span>
+                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase">[{item.category}]</span>
                         <h5 className="text-[15px] font-black italic text-[#2D3436]">{item.category === ExpenseCategory.OTHER ? item.name : (item.name || item.category)}</h5>
                       </div>
                       <p className="text-[10px] font-bold text-slate-300 italic">{item.date}</p>
@@ -398,7 +392,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* 6. 匯率/計算機 */}
         {activeTab === TabType.GUIDE && (
           <div className="flex flex-col pb-24 animate-fadeIn px-2">
             <div className="comic-border p-5 bg-white rounded-[32px] mb-5 shadow-lg border-[4px] border-[#2D3436]">
@@ -446,7 +439,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* 7. 天氣分頁 */}
         {activeTab === TabType.WEATHER && (
           <div className="space-y-4 pb-40 animate-fadeIn px-1">
             <div className="flex justify-between items-center px-2">
@@ -466,7 +458,7 @@ const App: React.FC = () => {
                     const data = i === 0 ? w.morning : i === 1 ? w.noon : w.night;
                     return (
                       <div key={label} className="flex flex-col items-center gap-2 p-3 bg-slate-50 rounded-2xl border-2 border-[#2D3436] shadow-sm">
-                        <span className="text-[10px] font-black text-slate-400 italic">{label}</span>
+                        <span className="text-[10px] font-black text-slate-400 italic uppercase">{label}</span>
                         {data.icon === 'sun' ? <Sun size={26} className="text-amber-400" /> : data.icon === 'cloud' ? <Cloud size={26} className="text-slate-400" /> : <Moon size={26} className="text-indigo-400" />}
                         <span className="text-[15px] font-black italic">{data.temp}</span>
                       </div>
@@ -480,7 +472,6 @@ const App: React.FC = () => {
       </main>
 
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
-      
       <SpotModal isOpen={isSpotModalOpen} onClose={() => { setIsSpotModalOpen(false); setEditingSpot(null); }} onSave={s => saveSpot(selectedDay, s)} initialSpot={editingSpot} />
       <FoodModal isOpen={isFoodModalOpen} onClose={() => { setIsFoodModalOpen(false); setEditingFood(null); }} onSave={food => setFoodItems(prev => editingFood ? prev.map(f => f.id === food.id ? food : f) : [...prev, food])} initialFood={editingFood} />
       <ExpenseModal isOpen={isExpenseModalOpen} onClose={() => { setIsExpenseModalOpen(false); setEditingExpense(null); }} onSave={exp => setExpenses(prev => editingExpense ? prev.map(e => e.id === exp.id ? exp : e) : [...prev, exp])} initialExpense={editingExpense} exchangeRate={parseFloat(customRate)} />
