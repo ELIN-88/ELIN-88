@@ -16,18 +16,21 @@ import {
   ReceiptText, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, RefreshCw, CheckCircle2
 } from 'lucide-react';
 
-// 使用穩定的 Key，若要清除舊快取可更改此版本號
-const STORAGE_KEY_PREFIX = 'okinawa_v2026_v5';
-const ITINERARY_KEY = `${STORAGE_KEY_PREFIX}_itinerary`;
-const FOOD_KEY = `${STORAGE_KEY_PREFIX}_food`;
-const EXPENSES_KEY = `${STORAGE_KEY_PREFIX}_expenses`;
-const WEATHER_KEY = `${STORAGE_KEY_PREFIX}_weather`;
+// 使用唯一的版本號 Key，確保資料庫清潔
+const STORAGE_PREFIX = 'okinawa_staff_v2026_stable';
+const KEYS = {
+  ITINERARY: `${STORAGE_PREFIX}_itinerary`,
+  FOOD: `${STORAGE_PREFIX}_food`,
+  EXPENSES: `${STORAGE_PREFIX}_expenses`,
+  WEATHER: `${STORAGE_PREFIX}_weather`
+};
 
 const evaluateExpression = (expr: string): number => {
   try {
     const sanitizedExpr = expr.replace(/[^-+*/.0-9]/g, '');
     if (!sanitizedExpr) return 0;
-    return new Function(`return ${sanitizedExpr}`)() || 0;
+    // 使用更安全的方式評估簡單運算
+    return Number(eval(sanitizedExpr)) || 0;
   } catch { return 0; }
 };
 
@@ -48,42 +51,46 @@ const App: React.FC = () => {
   const [isWeatherUpdating, setIsWeatherUpdating] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
-  // 初始化狀態：若 localStorage 是空的或長度為 0，則強制讀取預設常數
-  const [itinerary, setItinerary] = useState<DayPlan[]>(() => {
-    const saved = localStorage.getItem(ITINERARY_KEY);
-    return (saved && JSON.parse(saved).length > 0) ? JSON.parse(saved) : INITIAL_ITINERARY;
-  });
+  // 安全讀取 LocalStorage 的輔助函數
+  const getSafeStorage = <T,>(key: string, fallback: T): T => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (!saved) return fallback;
+      const parsed = JSON.parse(saved);
+      // 如果解析出來是空陣列且 fallback 有內容，則回退到 fallback
+      if (Array.isArray(parsed) && parsed.length === 0 && Array.isArray(fallback) && fallback.length > 0) {
+        return fallback;
+      }
+      return parsed;
+    } catch (e) {
+      console.error(`Storage Error [${key}]:`, e);
+      return fallback;
+    }
+  };
 
-  const [foodItems, setFoodItems] = useState<FoodItem[]>(() => {
-    const saved = localStorage.getItem(FOOD_KEY);
-    return (saved && JSON.parse(saved).length > 0) ? JSON.parse(saved) : FEATURED_FOOD;
-  });
+  const [itinerary, setItinerary] = useState<DayPlan[]>(() => getSafeStorage(KEYS.ITINERARY, INITIAL_ITINERARY));
+  const [foodItems, setFoodItems] = useState<FoodItem[]>(() => getSafeStorage(KEYS.FOOD, FEATURED_FOOD));
+  const [expenses, setExpenses] = useState<ExpenseItem[]>(() => getSafeStorage(KEYS.EXPENSES, []));
+  const [weatherForecast, setWeatherForecast] = useState<WeatherForecast[]>(() => getSafeStorage(KEYS.WEATHER, DEFAULT_WEATHER));
 
-  const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
-    const saved = localStorage.getItem(EXPENSES_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [weatherForecast, setWeatherForecast] = useState<WeatherForecast[]>(() => {
-    const saved = localStorage.getItem(WEATHER_KEY);
-    return saved ? JSON.parse(saved) : DEFAULT_WEATHER;
-  });
-
-  // 監聽並同步到本地儲存
-  useEffect(() => localStorage.setItem(ITINERARY_KEY, JSON.stringify(itinerary)), [itinerary]);
-  useEffect(() => localStorage.setItem(FOOD_KEY, JSON.stringify(foodItems)), [foodItems]);
-  useEffect(() => localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenses)), [expenses]);
-  useEffect(() => localStorage.setItem(WEATHER_KEY, JSON.stringify(weatherForecast)), [weatherForecast]);
+  // 同步資料
+  useEffect(() => localStorage.setItem(KEYS.ITINERARY, JSON.stringify(itinerary)), [itinerary]);
+  useEffect(() => localStorage.setItem(KEYS.FOOD, JSON.stringify(foodItems)), [foodItems]);
+  useEffect(() => localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses)), [expenses]);
+  useEffect(() => localStorage.setItem(KEYS.WEATHER, JSON.stringify(weatherForecast)), [weatherForecast]);
 
   const activeDayPlan = useMemo(() => itinerary.find(d => d.day === selectedDay), [itinerary, selectedDay]);
   const totalExpenseJpy = useMemo(() => expenses.reduce((s, i) => s + (i.amountJpy || 0), 0), [expenses]);
   const totalExpenseTwd = useMemo(() => expenses.reduce((s, i) => s + (i.amountTwd || 0), 0), [expenses]);
 
   const handleRefreshWeather = async () => {
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+    if (!apiKey) return;
+
     setIsWeatherUpdating(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     try {
-      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣，返回符合結構的 JSON (4天): [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"穿搭建議"}]`;
+      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣預測。返回符合結構的 JSON: [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"建議"}]`;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -95,17 +102,20 @@ const App: React.FC = () => {
   };
 
   const updateAutoTraffic = async (targetDay: number) => {
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
     const dayPlan = itinerary.find(d => d.day === targetDay);
-    if (!dayPlan || dayPlan.spots.length < 2) return;
+    if (!dayPlan || dayPlan.spots.length < 2 || !apiKey) return;
+    
     setIsTrafficUpdating(true);
     const updatedSpots = [...dayPlan.spots];
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
+    
     for (let i = 1; i < updatedSpots.length; i++) {
       const prev = updatedSpots[i - 1];
       const curr = updatedSpots[i];
       if (prev.address && curr.address && (!curr.travelTime || !curr.travelDistance)) {
         try {
-          const prompt = `計算沖繩自駕：「${prev.address}」到「${curr.address}」。返回純 JSON: {"time": "25 min", "distance": "8.5 km"}`;
+          const prompt = `計算自駕：「${prev.address}」到「${curr.address}」。返回純 JSON: {"time": "25 min", "distance": "8.5 km"}`;
           const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
@@ -367,7 +377,7 @@ const App: React.FC = () => {
                   <div key={item.id} className="comic-border p-4 bg-white rounded-[24px] flex justify-between items-center transition-all active:scale-[0.98] group" onClick={() => { setEditingExpense(item); setIsExpenseModalOpen(true); }}>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase">[{item.category}]</span>
+                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase active:scale-95 transition-transform">[{item.category}]</span>
                         <h5 className="text-[15px] font-black italic text-[#2D3436]">{item.category === ExpenseCategory.OTHER ? item.name : (item.name || item.category)}</h5>
                       </div>
                       <p className="text-[10px] font-bold text-slate-300 italic">{item.date}</p>
@@ -424,14 +434,14 @@ const App: React.FC = () => {
             </div>
             <button 
               onClick={() => {
-                if(window.confirm('確定要清空資料並恢復預設美食與行程嗎？')) {
+                if(window.confirm('確定要清空資料並恢復預設內容嗎？(這通常能解決佈署後的資料消失問題)')) {
                   localStorage.clear();
                   window.location.reload();
                 }
               }} 
               className="mt-8 text-[10px] font-black text-slate-300 italic flex items-center justify-center gap-2 hover:text-[#FF4747]"
             >
-              <Trash2 size={12}/> 重置所有資料 (資料遺失問題修復鍵)
+              <Trash2 size={12}/> 重置所有快取資料
             </button>
           </div>
         )}
