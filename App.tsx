@@ -16,12 +16,12 @@ import {
   ReceiptText, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, RefreshCw, CheckCircle2
 } from 'lucide-react';
 
-// 使用統一的版本號 Key，避免資料遺失
-const STORAGE_VER = 'v2026_final_v1';
-const ITINERARY_KEY = `shin_okinawa_itinerary_${STORAGE_VER}`;
-const FOOD_KEY = `shin_okinawa_food_${STORAGE_VER}`;
-const EXPENSES_KEY = `shin_okinawa_expenses_${STORAGE_VER}`;
-const WEATHER_KEY = `shin_okinawa_weather_${STORAGE_VER}`;
+// 使用穩定的 Key，若要清除舊快取可更改此版本號
+const STORAGE_KEY_PREFIX = 'okinawa_v2026_v5';
+const ITINERARY_KEY = `${STORAGE_KEY_PREFIX}_itinerary`;
+const FOOD_KEY = `${STORAGE_KEY_PREFIX}_food`;
+const EXPENSES_KEY = `${STORAGE_KEY_PREFIX}_expenses`;
+const WEATHER_KEY = `${STORAGE_KEY_PREFIX}_weather`;
 
 const evaluateExpression = (expr: string): number => {
   try {
@@ -48,15 +48,15 @@ const App: React.FC = () => {
   const [isWeatherUpdating, setIsWeatherUpdating] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
-  // 初始化資料邏輯修正：若 localStorage 無資料則讀取 constants
+  // 初始化狀態：若 localStorage 是空的或長度為 0，則強制讀取預設常數
   const [itinerary, setItinerary] = useState<DayPlan[]>(() => {
     const saved = localStorage.getItem(ITINERARY_KEY);
-    return saved ? JSON.parse(saved) : INITIAL_ITINERARY;
+    return (saved && JSON.parse(saved).length > 0) ? JSON.parse(saved) : INITIAL_ITINERARY;
   });
 
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => {
     const saved = localStorage.getItem(FOOD_KEY);
-    return saved ? JSON.parse(saved) : FEATURED_FOOD;
+    return (saved && JSON.parse(saved).length > 0) ? JSON.parse(saved) : FEATURED_FOOD;
   });
 
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
@@ -69,6 +69,7 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : DEFAULT_WEATHER;
   });
 
+  // 監聽並同步到本地儲存
   useEffect(() => localStorage.setItem(ITINERARY_KEY, JSON.stringify(itinerary)), [itinerary]);
   useEffect(() => localStorage.setItem(FOOD_KEY, JSON.stringify(foodItems)), [foodItems]);
   useEffect(() => localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenses)), [expenses]);
@@ -82,7 +83,7 @@ const App: React.FC = () => {
     setIsWeatherUpdating(true);
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
-      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣預測。返回 JSON 陣列 (4天): [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"洋蔥式穿法"}]`;
+      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣，返回符合結構的 JSON (4天): [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"穿搭建議"}]`;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -212,18 +213,18 @@ const App: React.FC = () => {
 
             <div className="comic-border p-4 bg-[#FF4747] text-white rounded-[32px] shadow-[6px_6px_0px_#2D3436]">
               <h3 className="text-base font-black flex items-center gap-2 mb-4 italic uppercase tracking-wider"><Car size={20} /> 沖繩自駕安全守則 ⚠️</h3>
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-3 gap-2 text-center font-black">
                 {[
                   { icon: <MoveLeft size={20}/>, label: '靠左行駛' },
-                  { icon: <span className="font-black text-lg">止</span>, label: '必停三秒' },
+                  { icon: <span className="text-lg">止</span>, label: '必停三秒' },
                   { icon: <SmartphoneCharging size={20} className="text-yellow-300"/>, label: '禁止手機' },
                   { icon: <BeerOff size={20} className="text-yellow-300"/>, label: '嚴禁酒駕' },
                   { icon: <AlertTriangle size={20}/>, label: '紅燈禁轉' },
-                  { icon: <span className="font-black text-lg">60</span>, label: '遵守速限' }
+                  { icon: <span className="text-lg">60</span>, label: '遵守速限' }
                 ].map((rule, i) => (
                   <div key={i} className="bg-white/10 p-2 rounded-xl flex flex-col items-center border border-white/20">
                     <div className="mb-1">{rule.icon}</div>
-                    <span className="text-[8px] font-black leading-none">{rule.label}</span>
+                    <span className="text-[8px] leading-none">{rule.label}</span>
                   </div>
                 ))}
               </div>
@@ -284,7 +285,7 @@ const App: React.FC = () => {
                           {spot.isPendingPayment && <span className="bg-orange-500 text-white px-2 py-0.5 rounded-lg border-2 border-[#2D3436] text-[8px] font-black italic flex items-center gap-1 shadow-[1.5px_1.5px_0px_#2D3436]"><Wallet size={10}/> 待付款</span>}
                           {spot.showQRCode && <span className="bg-purple-500 text-white px-2 py-0.5 rounded-lg border-2 border-[#2D3436] text-[8px] font-black italic flex items-center gap-1 shadow-[1.5px_1.5px_0px_#2D3436]"><QrCode size={10}/> QR 碼</span>}
                         </div>
-                        <p className="text-[10px] font-bold text-gray-400 italic mt-2 leading-relaxed border-t border-slate-50 pt-2">{spot.description}</p>
+                        <p className="text-[10px] font-bold text-gray-400 italic mt-2 leading-relaxed border-t border-slate-50 pt-2 whitespace-pre-wrap">{spot.description}</p>
                         <a href={spot.mapUrl} target="_blank" className="bg-[#4CB9E7] text-white py-2.5 rounded-xl border-[3px] border-[#2D3436] comic-button shadow-sm flex items-center justify-center gap-2 text-[10px] font-black italic mt-3.5 uppercase active:translate-y-0.5 transition-all"><Navigation2 size={18} /> 開啟導航</a>
                       </div>
                     </div>
@@ -346,7 +347,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* 5. 支出分頁 (優化後) */}
+        {/* 5. 支出分頁 */}
         {activeTab === TabType.EXPENSES && (
           <div className="space-y-4 pb-40 animate-fadeIn px-1">
             <div className="comic-border p-6 bg-[#2D3436] text-white rounded-[36px] shadow-[8px_8px_0px_#FFD93D]">
@@ -366,7 +367,7 @@ const App: React.FC = () => {
                   <div key={item.id} className="comic-border p-4 bg-white rounded-[24px] flex justify-between items-center transition-all active:scale-[0.98] group" onClick={() => { setEditingExpense(item); setIsExpenseModalOpen(true); }}>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1px_1px_0px_#2D3436] uppercase active:scale-95 transition-transform">{item.category}</span>
+                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase">[{item.category}]</span>
                         <h5 className="text-[15px] font-black italic text-[#2D3436]">{item.category === ExpenseCategory.OTHER ? item.name : (item.name || item.category)}</h5>
                       </div>
                       <p className="text-[10px] font-bold text-slate-300 italic">{item.date}</p>
@@ -387,7 +388,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* 6. 匯率/計算機分頁 */}
+        {/* 6. 匯率/計算機 */}
         {activeTab === TabType.GUIDE && (
           <div className="flex flex-col pb-24 animate-fadeIn px-2">
             <div className="comic-border p-5 bg-white rounded-[32px] mb-5 shadow-lg border-[4px] border-[#2D3436]">
@@ -421,6 +422,17 @@ const App: React.FC = () => {
                 <button onClick={() => setCalcDisplay(evaluateExpression(calcDisplay).toString())} className="comic-button flex-1 bg-[#FF4747] text-white rounded-2xl font-black border-[3px] border-[#2D3436] shadow-[5px_5px_0px_#2D3436] flex items-center justify-center min-h-[100px]"><Equal size={40} /></button>
               </div>
             </div>
+            <button 
+              onClick={() => {
+                if(window.confirm('確定要清空資料並恢復預設美食與行程嗎？')) {
+                  localStorage.clear();
+                  window.location.reload();
+                }
+              }} 
+              className="mt-8 text-[10px] font-black text-slate-300 italic flex items-center justify-center gap-2 hover:text-[#FF4747]"
+            >
+              <Trash2 size={12}/> 重置所有資料 (資料遺失問題修復鍵)
+            </button>
           </div>
         )}
 
