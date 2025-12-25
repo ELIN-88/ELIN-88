@@ -21,9 +21,7 @@ const SpotModal: React.FC<SpotModalProps> = ({ isOpen, onClose, onSave, initialS
     address: '',
     isReserved: false,
     showQRCode: false,
-    isPaid: false,
-    travelTime: '',
-    travelDistance: ''
+    isPaid: false
   });
 
   useEffect(() => {
@@ -40,9 +38,7 @@ const SpotModal: React.FC<SpotModalProps> = ({ isOpen, onClose, onSave, initialS
         address: '',
         isReserved: false,
         showQRCode: false,
-        isPaid: false,
-        travelTime: '',
-        travelDistance: ''
+        isPaid: false
       });
     }
   }, [initialSpot, isOpen]);
@@ -91,17 +87,6 @@ const SpotModal: React.FC<SpotModalProps> = ({ isOpen, onClose, onSave, initialS
           <div>
             <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-wider">行程備註</label>
             <textarea className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold focus:border-[#FF4747] focus:outline-none text-xs" rows={2} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="行李寄放、聯絡資訊..." />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-wider">交通時間 (預估)</label>
-              <input className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold focus:border-[#FF4747] focus:outline-none text-xs" value={formData.travelTime} onChange={e => setFormData({...formData, travelTime: e.target.value})} placeholder="例：30 min" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-wider">距離</label>
-              <input className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold focus:border-[#FF4747] focus:outline-none text-xs" value={formData.travelDistance} onChange={e => setFormData({...formData, travelDistance: e.target.value})} placeholder="例：15 km" />
-            </div>
           </div>
 
           <div>

@@ -56,8 +56,6 @@ export interface Spot {
   gasInfo?: string;
   photoTips?: string;
   groupFriendly?: boolean;
-  travelTime?: string;
-  travelDistance?: string;
   isReserved?: boolean;
   showQRCode?: boolean;
   isPaid?: boolean;

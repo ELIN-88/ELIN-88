@@ -68,20 +68,6 @@ const SpotCard: React.FC<SpotCardProps> = ({ spot, onEdit, onDelete }) => {
         </div>
       </div>
 
-      {/* 交通估算 */}
-      {(spot.travelTime || spot.travelDistance) && (
-        <div className="mb-4 flex gap-2">
-          <div className="flex-1 bg-blue-50 p-2 rounded-xl border-2 border-[#2D3436] flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_#2D3436]">
-            <Clock size={12} className="text-blue-500" />
-            <span className="text-[9px] font-black text-[#2D3436] italic">{spot.travelTime}</span>
-          </div>
-          <div className="flex-1 bg-rose-50 p-2 rounded-xl border-2 border-[#2D3436] flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_#2D3436]">
-            <Navigation size={12} className="text-rose-500" />
-            <span className="text-[9px] font-black text-[#2D3436] italic">{spot.travelDistance}</span>
-          </div>
-        </div>
-      )}
-
       {/* 底部按鈕 */}
       <div className="flex gap-2">
         <a href={spot.mapUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-[#FF4747] text-white py-3 rounded-[20px] flex items-center justify-center gap-2 text-[11px] font-black italic comic-border comic-button shadow-md">
