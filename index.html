@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>沖 繩 旅 遊 GO!</title>
-   <script src="https://cdn.tailwindcss.com"></script> 
+    <title>沖繩旅遊 GO！2026</title>
+    <script src="https://cdn.tailwindcss.com"></script> 
     <style>
         :root {
             --shin-yellow: #FFD93D;
@@ -13,51 +13,58 @@
             --shin-blue: #4CB9E7;
             --shin-border: #2D3436;
         }
+        
         body {
-            font-family: 'Noto Sans TC', sans-serif;
+            /* 全面改為微軟正黑體 */
+            font-family: "Microsoft JhengHei", "微軟正黑體", "Heiti TC", "sans-serif";
             background-color: #FFFBEB;
             color: #2D3436;
             -webkit-tap-highlight-color: transparent;
             overflow-x: hidden;
+            letter-spacing: -0.01em;
         }
+        
         .comic-border {
-            border: 4px solid var(--shin-border);
+            border: 3px solid var(--shin-border);
             box-shadow: 4px 4px 0px var(--shin-border);
         }
+        
+        .comic-button {
+            transition: all 0.1s ease;
+            cursor: pointer;
+        }
+        
         .comic-button:active {
             transform: translate(2px, 2px);
-            box-shadow: 1px 1px 0px var(--shin-border);
+            box-shadow: 1px 1px 0px var(--shin-border) !important;
         }
-        .bubble-font {
-            font-family: 'ZCOOL KuaiLe', cursive;
+
+        .tab-content { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        /* 隱藏捲軸但保持功能 */
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        main {
-            padding-bottom: 140px; /* 預留底部空間確保導航不遮擋內容 */
-        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .text-pop { text-shadow: 1.5px 1.5px 0px white; }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
   }
 }
 </script>
 </head>
-<body>
+<body class="font-bold">
     <div id="root"></div>
 </body>
 </html>

@@ -1,36 +1,36 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TabType, DayPlan, Spot, SpotCategory, FoodItem, WeatherForecast, SupermarketItem, ExpenseItem, ExpenseCategory } from './types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { TabType, DayPlan, Spot, FoodItem, WeatherForecast, ExpenseItem, ExpenseCategory, SpotCategory } from './types';
 import { INITIAL_ITINERARY, FEATURED_FOOD, DEFAULT_SUPERMARKETS } from './constants';
 import BottomNav from './components/BottomNav';
 import SpotModal from './components/SpotModal';
 import FoodModal from './components/FoodModal';
 import ExpenseModal from './components/ExpenseModal';
-import { GoogleGenAI, Type } from "@google/genai";
 import { 
   Plane, Hotel, MapPin, CloudSun, Sun, Cloud, Plus, Coins,
-  Car, Info, ArrowRight, Utensils, Beer, Luggage, Clock, ShoppingBag, 
-  Navigation2, Moon, Lightbulb, Sparkles, PackageCheck, WashingMachine, 
-  Equal, MoveLeft, AlertTriangle, QrCode, ShieldCheck, Instagram, CreditCard, 
-  Trash2, Edit2, Soup, Wallet, Banknote, Search, Ban, XCircle, UserCheck,
-  ReceiptText, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, RefreshCw, CheckCircle2
+  Car, Utensils, Navigation2, Moon, Sparkles, WashingMachine, 
+  Equal, MoveLeft, QrCode, Instagram, Trash2, Edit2, Soup, 
+  Wallet, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, Beer, RefreshCw, CheckCircle2, 
+  ReceiptText, Info, AlertCircle, ShoppingBag, Luggage, BatteryCharging, FlameKindling, ShieldAlert,
+  Search, ShieldCheck
 } from 'lucide-react';
 
-const STORAGE_PREFIX = 'okinawa_v2026_final_stable';
+const STORAGE_PREFIX = 'okinawa_staff_v2026_final';
 const KEYS = {
   ITINERARY: `${STORAGE_PREFIX}_itinerary`,
   FOOD: `${STORAGE_PREFIX}_food`,
   EXPENSES: `${STORAGE_PREFIX}_expenses`,
-  WEATHER: `${STORAGE_PREFIX}_weather`
+  WEATHER: `${STORAGE_PREFIX}_weather`,
+  RATE: `${STORAGE_PREFIX}_rate`
 };
 
-// 修復正則表達式：轉義斜線 / 防止編譯器報錯
 const evaluateExpression = (expr: string): number => {
   try {
-    const sanitizedExpr = expr.replace(/[^-+*\/0-9.]/g, ''); 
-    if (!sanitizedExpr) return 0;
-    return new Function(`return ${sanitizedExpr}`)() || 0;
-  } catch { return 0; }
+    const allowed = "0123456789+-*/.";
+    const sanitized = expr.split('').filter(c => allowed.includes(c)).join('');
+    if (!sanitized) return 0;
+    return new Function(`return ${sanitized}`)() || 0;
+  } catch (e) { return 0; }
 };
 
 const DEFAULT_WEATHER: WeatherForecast[] = [
@@ -43,26 +43,19 @@ const DEFAULT_WEATHER: WeatherForecast[] = [
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>(TabType.OVERVIEW);
   const [selectedDay, setSelectedDay] = useState<number>(1);
-  const [customRate, setCustomRate] = useState<string>('0.215');
-  const [calcDisplay, setCalcDisplay] = useState<string>('0');
-  const [isTwdToJpy, setIsTwdToJpy] = useState<boolean>(false);
-  const [isTrafficUpdating, setIsTrafficUpdating] = useState(false);
-  const [isWeatherUpdating, setIsWeatherUpdating] = useState(false);
-  const mainContentRef = useRef<HTMLDivElement>(null);
-
+  
   const getSafeStorage = <T,>(key: string, fallback: T): T => {
     try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+      const saved = localStorage.getItem(key);
       if (!saved) return fallback;
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length === 0 && Array.isArray(fallback) && fallback.length > 0) {
-        return fallback;
-      }
-      return parsed;
-    } catch (e) {
-      return fallback;
-    }
+      return JSON.parse(saved);
+    } catch (e) { return fallback; }
   };
+
+  const [customRate, setCustomRate] = useState<string>(() => getSafeStorage(KEYS.RATE, '0.215'));
+  const [calcDisplay, setCalcDisplay] = useState<string>('0');
+  const [isTwdToJpy, setIsTwdToJpy] = useState<boolean>(false);
+  const [isWeatherRefreshing, setIsWeatherRefreshing] = useState(false);
 
   const [itinerary, setItinerary] = useState<DayPlan[]>(() => getSafeStorage(KEYS.ITINERARY, INITIAL_ITINERARY));
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => getSafeStorage(KEYS.FOOD, FEATURED_FOOD));
@@ -70,85 +63,16 @@ const App: React.FC = () => {
   const [weatherForecast, setWeatherForecast] = useState<WeatherForecast[]>(() => getSafeStorage(KEYS.WEATHER, DEFAULT_WEATHER));
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(KEYS.ITINERARY, JSON.stringify(itinerary));
-      localStorage.setItem(KEYS.FOOD, JSON.stringify(foodItems));
-      localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
-      localStorage.setItem(KEYS.WEATHER, JSON.stringify(weatherForecast));
-    }
-  }, [itinerary, foodItems, expenses, weatherForecast]);
+    localStorage.setItem(KEYS.ITINERARY, JSON.stringify(itinerary));
+    localStorage.setItem(KEYS.FOOD, JSON.stringify(foodItems));
+    localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
+    localStorage.setItem(KEYS.WEATHER, JSON.stringify(weatherForecast));
+    localStorage.setItem(KEYS.RATE, JSON.stringify(customRate));
+  }, [itinerary, foodItems, expenses, weatherForecast, customRate]);
 
   const activeDayPlan = useMemo(() => itinerary.find(d => d.day === selectedDay), [itinerary, selectedDay]);
   const totalExpenseJpy = useMemo(() => expenses.reduce((s, i) => s + (i.amountJpy || 0), 0), [expenses]);
   const totalExpenseTwd = useMemo(() => expenses.reduce((s, i) => s + (i.amountTwd || 0), 0), [expenses]);
-
-  const handleRefreshWeather = async () => {
-    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
-    if (!apiKey) {
-      alert("請確保已配置 API Key 以更新天氣。");
-      return;
-    }
-
-    setIsWeatherUpdating(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣預測。返回符合結構的 JSON: [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"穿搭建議"}]`;
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { tools: [{googleSearch: {}}], responseMimeType: "application/json" }
-      });
-      const result = JSON.parse(response.text || '[]');
-      if (Array.isArray(result) && result.length === 4) setWeatherForecast(result);
-    } catch (e) { console.error(e); } finally { setIsWeatherUpdating(false); }
-  };
-
-  const updateAutoTraffic = async (targetDay: number) => {
-    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
-    const dayPlan = itinerary.find(d => d.day === targetDay);
-    if (!dayPlan || dayPlan.spots.length < 2 || !apiKey) return;
-    
-    setIsTrafficUpdating(true);
-    const updatedSpots = [...dayPlan.spots];
-    const ai = new GoogleGenAI({ apiKey });
-    
-    for (let i = 1; i < updatedSpots.length; i++) {
-      const prev = updatedSpots[i - 1];
-      const curr = updatedSpots[i];
-      if (prev.address && curr.address && (!curr.travelTime || !curr.travelDistance)) {
-        try {
-          const prompt = `計算自駕：「${prev.address}」到「${curr.address}」。返回純 JSON: {"time": "25 min", "distance": "8.5 km"}`;
-          const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { time: { type: Type.STRING }, distance: { type: Type.STRING } }, required: ["time", "distance"] } }
-          });
-          const result = JSON.parse(response.text || '{}');
-          updatedSpots[i] = { ...curr, travelTime: result.time, travelDistance: result.distance };
-        } catch (e) { console.error(e); }
-      }
-    }
-    setItinerary(prev => prev.map(d => d.day === targetDay ? { ...d, spots: updatedSpots } : d));
-    setIsTrafficUpdating(false);
-  };
-
-  const saveSpot = (day: number, spot: Spot) => {
-    setItinerary(prev => prev.map(d => d.day === day ? { 
-      ...d, 
-      spots: d.spots.some(x => x.id === spot.id) 
-        ? d.spots.map(x => x.id === spot.id ? spot : x) 
-        : [...d.spots, spot].sort((a, b) => a.time.localeCompare(b.time))
-    } : d));
-    setTimeout(() => updateAutoTraffic(day), 100);
-  };
-
-  const deleteSpot = (day: number, spotId: string) => {
-    setItinerary(prev => prev.map(d => d.day === day ? { ...d, spots: d.spots.filter(s => s.id !== spotId) } : d));
-  };
-
-  const deleteExpense = (id: string) => {
-    setExpenses(prev => prev.filter(e => e.id !== id));
-  };
 
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
   const [editingSpot, setEditingSpot] = useState<Spot | null>(null);
@@ -157,146 +81,149 @@ const App: React.FC = () => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
 
+  const refreshWeather = () => {
+    setIsWeatherRefreshing(true);
+    setTimeout(() => {
+      setWeatherForecast([...DEFAULT_WEATHER]);
+      setIsWeatherRefreshing(false);
+    }, 1200);
+  };
+
   return (
-    <div className="min-h-screen px-3 pt-8 pb-32 font-sans max-w-lg mx-auto overflow-x-hidden selection:bg-[#FFD93D]" ref={mainContentRef}>
-      <header className="mb-6 flex flex-col items-center">
-        <div className="bg-[#FFD93D] px-8 py-3 rounded-[30px] comic-border rotate-[-1deg] mb-1.5 shadow-[6px_6px_0px_#2D3436]">
-          <h1 className="text-2xl font-black text-slate-900 tracking-tighter bubble-font italic uppercase text-center">沖 繩 旅 遊 Go！</h1>
+    <div className="min-h-screen px-4 pt-10 pb-[100px] max-w-lg mx-auto overflow-x-hidden selection:bg-[#FFD93D]">
+      <header className="mb-8 flex flex-col items-center">
+        <div className="bg-[#FFD93D] px-8 py-3 rounded-[35px] comic-border rotate-[-1deg] mb-1.5 shadow-[4px_4px_0px_#2D3436]">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase text-center text-pop">沖繩旅遊 Go！</h1>
         </div>
+        <span className="bg-slate-900 text-white px-4 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest mt-2 tracking-tight">2026.01.11 - 01.14 Staff Trip</span>
       </header>
 
-      <main className="relative">
+      <main className="tab-content relative">
         {activeTab === TabType.OVERVIEW && (
-          <div className="space-y-4 pb-32 animate-fadeIn pt-4 px-1">
-            <div className="comic-border p-3.5 bg-white rounded-[24px]">
-              <h3 className="text-sm font-black flex items-center gap-2 mb-3 italic text-[#4CB9E7] uppercase tracking-tight"><Plane size={16} /> 航班資訊</h3>
-              <div className="space-y-2">
-                <div className="bg-blue-50 p-3 rounded-xl border-[3px] border-[#2D3436]">
-                  <p className="font-black text-[#4CB9E7] text-[10px] flex justify-between">1/11 去程 FD230 <span className="text-slate-400 font-bold">11:00 Check-in</span></p>
-                  <div className="flex justify-between items-end mt-1">
-                    <span className="text-[20px] font-black tracking-tighter">13:30 - 15:55</span>
-                    <div className="flex gap-1.5">
-                      <span className="text-[10px] bg-white border-2 border-[#2D3436] px-2 py-0.5 rounded-lg font-black italic shadow-sm text-[#2D3436]">手提 7kg</span>
-                      <span className="text-[10px] bg-[#2D3436] text-white px-2 py-0.5 rounded-lg font-black italic shadow-sm">托運 20kg</span>
-                    </div>
+          <div className="space-y-6 pb-4">
+            {/* 1. 航班資訊 - 移至第一格 */}
+            <section className="comic-border p-5 bg-white rounded-[32px]">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-[#4CB9E7] p-1.5 rounded-lg text-white shadow-sm"><Plane size={20} /></div>
+                <h2 className="text-xl font-black italic tracking-tight">航班與行李情報</h2>
+              </div>
+              <div className="space-y-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-900">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[10px] font-black">1/11 FD230 (去程)</span>
+                    <div className="flex items-center gap-1.5 text-blue-600 font-black text-[10px]"><Luggage size={14}/> 托運 20kg / 7kg 手提</div>
+                  </div>
+                  <div className="flex justify-between items-center px-2">
+                    <div className="text-center"><p className="text-[10px] text-slate-400 font-black">TPE</p><p className="text-2xl font-black">13:30</p></div>
+                    <div className="flex-1 px-4"><div className="w-full h-[2px] bg-slate-200"></div></div>
+                    <div className="text-center"><p className="text-[10px] text-slate-400 font-black">OKA</p><p className="text-2xl font-black">15:55</p></div>
                   </div>
                 </div>
-                <div className="bg-emerald-50 p-3 rounded-xl border-[3px] border-[#2D3436]">
-                  <p className="font-black text-emerald-600 text-[10px] flex justify-between">1/14 回程 BR185 <span className="text-slate-400 font-bold">17:30 Check-in</span></p>
-                  <div className="flex justify-between items-end mt-1">
-                    <span className="text-[20px] font-black tracking-tighter">20:20 - 21:10</span>
-                    <div className="flex gap-1.5">
-                      <span className="text-[10px] bg-white border-2 border-[#2D3436] px-2 py-0.5 rounded-lg font-black italic shadow-sm text-[#2D3436]">手提 7kg</span>
-                      <span className="text-[10px] bg-[#2D3436] text-white px-2 py-0.5 rounded-lg font-black italic shadow-sm">托運 23kg</span>
-                    </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-900">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[10px] font-black">1/14 BR185 (回程)</span>
+                    <div className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px]"><Luggage size={14}/> 托運 23kg / 7kg 手提</div>
+                  </div>
+                  <div className="flex justify-between items-center px-2">
+                    <div className="text-center"><p className="text-[10px] text-slate-400 font-black">OKA</p><p className="text-2xl font-black">20:20</p></div>
+                    <div className="flex-1 px-4"><div className="w-full h-[2px] bg-slate-200"></div></div>
+                    <div className="text-center"><p className="text-[10px] text-slate-400 font-black">TPE</p><p className="text-2xl font-black">21:10</p></div>
+                  </div>
+                </div>
+                <div className="bg-amber-50 p-4 rounded-2xl border-2 border-amber-500/20">
+                  <h3 className="text-xs font-black flex items-center gap-1.5 mb-2 text-amber-700"><ShieldAlert size={16}/> 航空安全提醒</h3>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-black">
+                    <div className="bg-white/60 p-2 rounded-lg border border-amber-200">行動電源 (嚴禁托運)</div>
+                    <div className="bg-white/60 p-2 rounded-lg border border-amber-200">打火機 (限一隨身)</div>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="comic-border p-4 bg-white rounded-[24px] border-[4px] border-[#2D3436] shadow-[6px_6px_0px_#2D3436]">
-              <div className="flex justify-between items-start mb-3">
+            {/* 2. 飯店資訊 */}
+            <section className="comic-border p-5 bg-white rounded-[32px]">
+              <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-base font-black flex items-center gap-1.5 italic text-[#2D3436] bubble-font"><Hotel size={18} className="text-[#FFD93D]" /> 那霸逸之彩飯店 (Hinode)</h3>
-                  <p className="text-[9px] font-black text-slate-400 mt-0.5 uppercase tracking-tighter">那霸市牧志 3-18-33 (牧志站 1min)</p>
+                  <h2 className="text-xl font-black flex items-center gap-2 text-[#2D3436] italic"><Hotel size={24} className="text-[#FFD93D]" /> 那霸逸之彩飯店</h2>
+                  <p className="text-[11px] font-black text-slate-400 mt-1">牧志站 1 分鐘 / 拉麵啤酒 Happy Hour</p>
                 </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Okinawa+Hinode+Hotel" target="_blank" rel="noreferrer" className="bg-[#4CB9E7] text-white p-3 rounded-2xl border-2 border-slate-900 comic-button shadow-sm active:translate-y-0.5 transition-all"><Navigation2 size={24}/></a>
+                <a href="https://www.google.com/maps/search/?api=1&query=Okinawa+Hinode+Hotel" className="bg-[#4CB9E7] text-white p-3 rounded-2xl border-2 border-slate-900 comic-button shadow-[2px_2px_0px_#2D3436]"><Navigation2 size={24}/></a>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-[9px] font-black">
-                <div className="bg-rose-50 p-2 rounded-lg border-2 border-slate-900 flex items-center gap-1.5 shadow-sm"><Utensils size={12}/> 早餐 (06:30-10:00)</div>
-                <div className="bg-blue-50 p-2 rounded-lg border-2 border-slate-900 flex items-center gap-1.5 shadow-sm"><Soup size={12}/> 宵夜拉麵 (20:30-21:30)</div>
-                <div className="bg-amber-50 p-2 rounded-lg border-2 border-slate-900 flex items-center gap-1.5 shadow-sm"><Beer size={12}/> 啤酒暢飲 (10:00-22:00)</div>
-                <div className="bg-slate-50 p-2 rounded-lg border-2 border-slate-900 flex items-center gap-1.5 shadow-sm"><WashingMachine size={12}/> 24h 自助洗衣</div>
+              <div className="grid grid-cols-2 gap-3 text-[10px] font-black">
+                 <div className="bg-rose-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><Utensils size={14}/> 早餐 06:30+</div>
+                 <div className="bg-blue-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><Soup size={14}/> 宵夜拉麵 20:30+</div>
+                 <div className="bg-amber-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><Beer size={14}/> 啤酒暢飲 10-22h</div>
+                 <div className="bg-slate-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><WashingMachine size={14}/> 24h 洗衣</div>
               </div>
-            </div>
+            </section>
 
-            <div className="comic-border p-4 bg-white rounded-[24px] border-[4px] border-[#2D3436] shadow-[6px_6px_0px_#2D3436]">
-              <h3 className="text-sm font-black flex items-center gap-2 mb-3 italic text-[#E4405F] uppercase tracking-tight"><Instagram size={18} /> 地區美食 IG 搜尋</h3>
-              <div className="grid grid-cols-2 gap-2.5">
-                {foodItems.filter(f => f.type === '區域搜尋').map((food) => (
-                  <a key={food.id} href={`https://www.instagram.com/explore/tags/${encodeURIComponent(food.tags[0] + '美食')}/`} target="_blank" rel="noreferrer" className="bg-white p-2.5 rounded-xl border-2 border-[#2D3436] comic-button shadow-[2.5px_2.5px_0px_#2D3436] flex flex-col items-center justify-center gap-1 active:translate-y-0.5 transition-all">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Day {food.day}</span>
-                    <span className="text-[11px] font-black text-slate-900 italic">#{food.tags[0]}美食</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            <div className="comic-border p-4 bg-[#FF4747] text-white rounded-[32px] shadow-[6px_6px_0px_#2D3436]">
-              <h3 className="text-base font-black flex items-center gap-2 mb-4 italic uppercase tracking-wider"><Car size={20} /> 沖繩自駕安全守則 ⚠️</h3>
-              <div className="grid grid-cols-3 gap-2 text-center font-black">
+            {/* 3. 自駕守則 - 移至最後一格 */}
+            <section className="comic-border p-5 bg-[#FF4747] text-white rounded-[32px]">
+              <h3 className="text-lg font-black flex items-center gap-2 mb-4 italic uppercase tracking-wider"><Car size={24} /> 沖繩自駕安全守則 ⚠️</h3>
+              <div className="grid grid-cols-3 gap-3 text-center">
                 {[
-                  { icon: <MoveLeft size={20}/>, label: '靠左行駛' },
-                  { icon: <span className="text-lg font-black">止</span>, label: '必停三秒' },
-                  { icon: <SmartphoneCharging size={20} className="text-yellow-300"/>, label: '禁止手機' },
-                  { icon: <BeerOff size={20} className="text-yellow-300"/>, label: '嚴禁酒駕' },
-                  { icon: <AlertTriangle size={20}/>, label: '紅燈禁轉' },
-                  { icon: <span className="text-lg font-black">60</span>, label: '遵守速限' }
+                  { icon: <MoveLeft size={24}/>, label: '靠左行駛' },
+                  { icon: <span className="text-xl font-black">止</span>, label: '必停三秒' },
+                  { icon: <SmartphoneCharging size={24} className="text-yellow-300"/>, label: '禁止手機' },
+                  { icon: <BeerOff size={24} className="text-yellow-300"/>, label: '嚴禁酒駕' },
+                  { icon: <Navigation2 size={24}/>, label: '地圖優先' },
+                  { icon: <span className="text-xl font-black">60</span>, label: '遵守速限' }
                 ].map((rule, i) => (
                   <div key={i} className="bg-white/10 p-2 rounded-xl flex flex-col items-center border border-white/20">
-                    <div className="mb-1">{rule.icon}</div>
-                    <span className="text-[8px] leading-none uppercase font-bold">{rule.label}</span>
+                    <div className="mb-1.5">{rule.icon}</div>
+                    <span className="text-[10px] font-black uppercase">{rule.label}</span>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           </div>
         )}
 
         {activeTab === TabType.ITINERARY && (
-          <div className="space-y-4 pb-40 animate-fadeIn">
-            <div className="sticky top-[-4px] z-[90] bg-[#FFFBEB]/95 backdrop-blur-md pt-3 pb-3 border-b-2 border-[#2D3436] -mx-3 px-3 shadow-sm flex items-center justify-between">
-              <div className="flex gap-2.5 overflow-x-auto hide-scrollbar py-1">
-                {[1, 2, 3, 4].map(d => (
-                  <button key={d} onClick={() => setSelectedDay(d)} className={`px-7 py-2 rounded-[20px] text-[11px] font-black border-2 border-[#2D3436] transition-all ${selectedDay === d ? 'bg-[#FF4747] text-white shadow-[3px_3px_0px_#2D3436]' : 'bg-white text-slate-300'}`}>Day {d}</button>
-                ))}
-              </div>
-              {isTrafficUpdating && <Loader2 size={16} className="text-[#4CB9E7] animate-spin ml-2"/>}
+          <div className="space-y-6 pb-12">
+            <div className="sticky top-0 z-[90] bg-[#FFFBEB]/90 backdrop-blur-md py-4 flex gap-3 overflow-x-auto hide-scrollbar -mx-4 px-4 border-b-2 border-slate-900/10">
+              {[1, 2, 3, 4].map(d => (
+                <button key={d} onClick={() => setSelectedDay(d)} className={`px-8 py-2 rounded-[24px] text-lg font-black border-2 border-slate-900 transition-all shrink-0 ${selectedDay === d ? 'bg-[#FF4747] text-white shadow-[3px_3px_0px_#2D3436]' : 'bg-white text-slate-300'}`}>Day {d}</button>
+              ))}
             </div>
-
             {activeDayPlan && (
-              <div className="pt-6 relative">
-                <div className="flex justify-between items-center px-2 mb-6">
-                  <h2 className="text-lg font-black italic bubble-font tracking-tight text-[#2D3436] uppercase">{activeDayPlan.title}</h2>
-                  <button onClick={() => { setEditingSpot(null); setIsSpotModalOpen(true); }} className="bg-[#4CB9E7] text-white px-4 py-1.5 rounded-full border-2 border-[#2D3436] font-black italic text-[10px] shadow-[2.5px_2.5px_0px_#2D3436] active:translate-y-1 transition-all">+ 增加景點</button>
+              <div className="animate-fadeIn">
+                <div className="flex justify-between items-end mb-8 px-2">
+                  <div>
+                    <h2 className="text-2xl font-black italic text-slate-900">{activeDayPlan.title}</h2>
+                    <p className="text-[11px] font-black text-[#FF4747] mt-1">{activeDayPlan.date} | {activeDayPlan.clothingTips}</p>
+                  </div>
+                  <button onClick={() => { setEditingSpot(null); setIsSpotModalOpen(true); }} className="bg-[#4CB9E7] text-white px-5 py-2 rounded-full border-2 border-slate-900 text-xs font-black shadow-[3px_3px_0px_#2D3436]">+ 景點</button>
                 </div>
-
-                <div className="relative border-l-[8px] border-[#2D3436] ml-6 pl-9 pb-4">
+                <div className="relative border-l-[6px] border-slate-900 ml-6 pl-10 space-y-12 pb-10">
                   {activeDayPlan.spots.map((spot, idx) => (
-                    <div key={spot.id} className="relative mb-24 last:mb-4 group">
-                      {idx > 0 && (
-                        <div className="absolute -top-[82px] -left-[62px] z-20 w-[135px] flex flex-col items-center">
-                          <div className="bg-[#FFD93D] px-3.5 py-2 rounded-2xl border-[4px] border-[#2D3436] shadow-[5px_5px_0px_#2D3436] flex items-center gap-2.5 justify-center min-w-[115px]">
-                            <Car size={20} className="text-[#2D3436]" />
-                            <div className="flex flex-col items-start leading-none gap-0.5">
-                              <span className="text-[13px] font-black italic text-[#2D3436] uppercase tracking-tighter">{spot.travelTime || '-- min'}</span>
-                              <span className="text-[11px] font-black italic text-[#2D3436] uppercase tracking-tighter opacity-80">{spot.travelDistance || '-- km'}</span>
-                            </div>
-                          </div>
-                          <div className="w-[4px] h-11 bg-[#2D3436] -mt-1 -z-10"></div>
-                        </div>
-                      )}
-                      
-                      <div className="relative bg-white p-3.5 rounded-[24px] border-[4px] border-[#2D3436] shadow-[6px_6px_0px_#2D3436] transition-transform active:scale-[0.97]">
-                        <div className="absolute -left-[64px] top-4 w-11 h-11 bg-[#FFD93D] text-[#2D3436] rounded-full flex items-center justify-center font-black italic border-[4px] border-[#2D3436] z-10 text-lg shadow-[3px_3px_0px_#2D3436]">{idx + 1}</div>
-                        <div className="flex justify-between items-start">
+                    <div key={spot.id} className="relative">
+                      <div className="absolute -left-[68px] top-4 w-12 h-12 bg-[#FFD93D] text-slate-900 rounded-full flex items-center justify-center text-xl font-black border-[3px] border-slate-900 z-10 shadow-[2px_2px_0px_#2D3436]">{idx + 1}</div>
+                      <div className="comic-border bg-white p-5 rounded-[32px]">
+                        <div className="flex justify-between items-start mb-2">
                           <div>
-                            <p className="text-lg font-black text-[#FF4747] italic mb-0.5 tracking-tighter leading-none">{spot.time}</p>
-                            <h4 className="text-xl font-black italic tracking-tighter leading-tight mt-1 text-[#2D3436] uppercase">{spot.name}</h4>
+                            <span className="bg-[#FF4747] text-white px-3 py-0.5 rounded-lg text-[10px] font-black italic">{spot.time}</span>
+                            <h4 className="text-lg font-black mt-1 text-slate-900 leading-tight">{spot.name}</h4>
                           </div>
-                          <div className="flex gap-2.5">
-                            <button onClick={() => { setEditingSpot(spot); setIsSpotModalOpen(true); }} className="text-slate-300 hover:text-slate-900 transition-all"><Edit2 size={16} /></button>
-                            <button onClick={() => deleteSpot(selectedDay, spot.id)} className="text-slate-300 hover:text-red-500 transition-all"><Trash2 size={16} /></button>
+                          <div className="flex gap-2">
+                            <button onClick={() => { setEditingSpot(spot); setIsSpotModalOpen(true); }} className="text-slate-300 hover:text-slate-900"><Edit2 size={18} /></button>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 mt-2 mb-2">
-                          {spot.isReserved && <span className="bg-blue-500 text-white px-2 py-0.5 rounded-lg border-2 border-[#2D3436] text-[8px] font-black italic flex items-center gap-1 shadow-[1.5px_1.5px_0px_#2D3436]"><CheckCircle2 size={10}/> 已預約</span>}
-                          {spot.isPaid && <span className="bg-emerald-500 text-white px-2 py-0.5 rounded-lg border-2 border-[#2D3436] text-[8px] font-black italic flex items-center gap-1 shadow-[1.5px_1.5px_0px_#2D3436]"><ShieldCheck size={10}/> 已付款</span>}
-                          {spot.isPendingPayment && <span className="bg-orange-500 text-white px-2 py-0.5 rounded-lg border-2 border-[#2D3436] text-[8px] font-black italic flex items-center gap-1 shadow-[1.5px_1.5px_0px_#2D3436]"><Wallet size={10}/> 待付款</span>}
-                          {spot.showQRCode && <span className="bg-purple-500 text-white px-2 py-0.5 rounded-lg border-2 border-[#2D3436] text-[8px] font-black italic flex items-center gap-1 shadow-[1.5px_1.5px_0px_#2D3436]"><QrCode size={10}/> QR 碼</span>}
+
+                        {/* 狀態標籤 */}
+                        <div className="flex flex-wrap gap-1.5 my-2">
+                          {spot.isReserved && <span className="flex items-center gap-1 bg-blue-500 text-white px-2 py-0.5 rounded-full border border-slate-900 text-[8px] font-black italic tracking-tighter"><CheckCircle2 size={10}/>已預約</span>}
+                          {spot.showQRCode && <span className="flex items-center gap-1 bg-purple-500 text-white px-2 py-0.5 rounded-full border border-slate-900 text-[8px] font-black italic tracking-tighter"><QrCode size={10}/>QR</span>}
+                          {spot.isPaid && <span className="flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full border border-slate-900 text-[8px] font-black italic tracking-tighter"><ShieldCheck size={10}/>已付</span>}
                         </div>
-                        <p className="text-[10px] font-bold text-gray-400 italic mt-2 leading-relaxed border-t border-slate-50 pt-2 whitespace-pre-wrap">{spot.description}</p>
-                        <a href={spot.mapUrl} target="_blank" rel="noreferrer" className="bg-[#4CB9E7] text-white py-2.5 rounded-xl border-[3px] border-[#2D3436] comic-button shadow-sm flex items-center justify-center gap-2 text-[10px] font-black italic mt-3.5 uppercase active:translate-y-0.5 transition-all"><Navigation2 size={18} /> 開啟導航</a>
+
+                        {/* 修復備註顯示 */}
+                        <div className="mt-4 p-3 bg-slate-50 border-2 border-slate-200 rounded-2xl relative shadow-inner">
+                           <div className="absolute -top-2 left-4 w-3 h-3 bg-slate-50 border-l-2 border-t-2 border-slate-200 rotate-45"></div>
+                           <p className="text-[11px] font-bold text-slate-600 italic whitespace-pre-wrap leading-relaxed">{spot.description || "暫無備註"}</p>
+                        </div>
+                        
+                        {spot.mapUrl && <a href={spot.mapUrl} target="_blank" className="mt-4 w-full bg-[#4CB9E7] text-white py-3 rounded-2xl border-2 border-slate-900 flex items-center justify-center gap-2 text-sm font-black italic shadow-[2px_2px_0px_#2D3436] active:translate-y-0.5 transition-all"><Navigation2 size={20} /> 開啟導航</a>}
                       </div>
                     </div>
                   ))}
@@ -307,177 +234,138 @@ const App: React.FC = () => {
         )}
 
         {activeTab === TabType.FOOD && (
-          <div className="space-y-5 pb-40 animate-fadeIn px-1">
-            <div className="flex justify-between items-center px-2">
-              <h2 className="text-lg font-black italic bubble-font tracking-tight text-[#FF4747] uppercase">美食口袋名單 🤤</h2>
-              <button onClick={() => { setEditingFood(null); setIsFoodModalOpen(true); }} className="bg-[#FF4747] text-white px-4 py-1.5 rounded-full border-2 border-[#2D3436] font-black italic text-[10px] shadow-[3px_3px_0px_#2D3436] active:translate-y-1 transition-all">+ 增加美食</button>
+          <div className="space-y-6 pb-12">
+            <h2 className="text-2xl font-black italic text-center text-[#FF4747] text-pop">美食區域 IG 搜尋 🤤</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {foodItems.filter(f => f.type === '區域搜尋').map(f => (
+                <a key={f.id} href={`https://www.instagram.com/explore/tags/${encodeURIComponent(f.tags[0] + '美食')}/`} target="_blank" className="comic-border bg-white p-4 rounded-[28px] flex flex-col items-center gap-2 text-center shadow-sm">
+                  <Instagram size={24} className="text-[#E4405F]"/>
+                  <p className="text-[10px] font-black text-slate-400">Day {f.day} | {f.name}</p>
+                  <p className="text-sm font-black italic">#{f.tags[0]}美食</p>
+                </a>
+              ))}
             </div>
-            {foodItems.filter(f => f.type !== '區域搜尋').map(food => (
-              <div key={food.id} className="comic-border p-5 bg-white rounded-[32px] relative overflow-hidden shadow-sm">
-                <div className="absolute top-0 left-0 bg-[#FFD93D] px-4 py-1.5 border-r-[3px] border-b-[3px] border-[#2D3436] text-[10px] font-black italic shadow-sm">Day {food.day}</div>
-                <div className="flex justify-between items-start mt-6 mb-2">
-                  <h4 className="text-xl font-black italic tracking-tight uppercase">{food.name}</h4>
-                  <div className="flex gap-3">
-                    <button onClick={() => { setEditingFood(food); setIsFoodModalOpen(true); }} className="text-slate-300 hover:text-[#2D3436] transition-all"><Edit2 size={18} /></button>
-                    <button onClick={() => setFoodItems(prev => prev.filter(f => f.id !== food.id))} className="text-slate-300 hover:text-red-500 transition-all"><Trash2 size={18} /></button>
-                  </div>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-[24px] border-[2px] border-[#2D3436] mb-4 shadow-inner">
-                  <p className="text-[11px] font-black italic text-slate-500 mb-2">{food.description}</p>
-                  <p className="text-[11px] font-black text-[#FF4747] italic flex items-center gap-2"><Sparkles size={14}/> {food.recommended}</p>
-                </div>
-                <div className="flex gap-3">
-                  <a href={`https://www.instagram.com/explore/tags/${encodeURIComponent(food.tags[0] + '美食')}/`} target="_blank" rel="noreferrer" className="flex-1 bg-[#E4405F] text-white py-3.5 rounded-xl border-2 border-[#2D3436] comic-button shadow-md flex items-center justify-center gap-2 text-[11px] font-black italic uppercase"><Instagram size={18}/> IG 搜尋</a>
-                  <a href={food.mapUrl} target="_blank" rel="noreferrer" className="bg-[#4CB9E7] text-white px-5 rounded-xl border-2 border-[#2D3436] comic-button shadow-md flex items-center justify-center"><MapPin size={22}/></a>
-                </div>
-              </div>
-            ))}
           </div>
         )}
 
         {activeTab === TabType.SUPERMARKET && (
-          <div className="space-y-5 pb-40 animate-fadeIn px-1">
-            <h2 className="text-lg font-black italic px-2 bubble-font tracking-tight text-[#4CB9E7] uppercase">補給 (飯店優先) 🛒</h2>
-            {DEFAULT_SUPERMARKETS.map(shop => (
-              <div key={shop.id} className="comic-border p-5 bg-white rounded-[32px] relative shadow-sm">
-                <div className="absolute top-0 left-0 bg-[#4CB9E7] text-white px-4 py-1.5 border-r-[3px] border-b-[3px] border-[#2D3436] text-[10px] font-black italic uppercase">
-                  {shop.id === 's3' || shop.id === 's-h1' ? '飯店首選' : `Day ${shop.day}`}
+          <div className="space-y-6 pb-12">
+            <h2 className="text-2xl font-black italic text-center text-[#4CB9E7] text-pop">飯店補給清單 🛒</h2>
+            <p className="text-center text-[10px] font-black text-slate-400 -mt-4">專為那霸逸之彩飯店規劃</p>
+            <div className="grid gap-5">
+              {DEFAULT_SUPERMARKETS.map(shop => (
+                <div key={shop.id} className="comic-border p-5 bg-white rounded-[32px]">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="text-lg font-black italic leading-tight">{shop.name}</h4>
+                    <span className="bg-[#4CB9E7] text-white px-3 py-0.5 rounded-full text-[9px] font-black uppercase">Day {shop.day}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 my-3 text-[10px] font-black text-slate-500">
+                    <span className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg"><RefreshCw size={12}/> {shop.openingHours}</span>
+                    <span className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg"><Wallet size={12}/> {shop.paymentMethods.join('/')}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mb-4 font-black">{shop.description}</p>
+                  <a href={shop.mapUrl} className="w-full bg-[#2D3436] text-white py-3 rounded-xl flex items-center justify-center gap-2 font-black shadow-[3px_3px_0px_#4CB9E7] active:translate-y-0.5 transition-all"><Navigation2 size={18}/> 開啟導航</a>
                 </div>
-                <h4 className="text-lg font-black italic mt-6 uppercase">{shop.name}</h4>
-                <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-black mb-4 uppercase">
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center gap-2 shadow-sm border border-slate-100"><Clock size={14} className="text-[#4CB9E7]"/> {shop.openingHours}</div>
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center gap-2 shadow-sm border border-slate-100"><Wallet size={14} className="text-[#4CB9E7]"/> {shop.paymentMethods.join('/')}</div>
-                </div>
-                <p className="text-[11px] font-bold text-slate-400 italic mb-4">{shop.description}</p>
-                <a href={shop.mapUrl} target="_blank" rel="noreferrer" className="bg-[#2D3436] text-white w-full py-4 rounded-xl flex items-center justify-center gap-2 text-[11px] font-black italic comic-button border-2 border-[#2D3436] uppercase active:translate-y-0.5 transition-all shadow-md"><MapPin size={18}/> 導航至該店</a>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
         {activeTab === TabType.EXPENSES && (
-          <div className="space-y-4 pb-40 animate-fadeIn px-1">
-            <div className="comic-border p-6 bg-[#2D3436] text-white rounded-[36px] shadow-[8px_8px_0px_#FFD93D]">
-              <h3 className="text-[11px] font-black italic text-[#FFD93D] uppercase mb-4 tracking-widest">目前支出總計 💰</h3>
-              <p className="text-5xl font-black italic tracking-tighter">¥ {totalExpenseJpy.toLocaleString()}</p>
-              <p className="text-lg font-bold text-[#4CB9E7] italic mt-1">≈ $ {totalExpenseTwd.toLocaleString()} TWD</p>
-            </div>
-            <div className="flex justify-between items-center px-2 pt-5">
-              <h4 className="text-sm font-black italic uppercase tracking-widest text-[#2D3436]">紀錄明細</h4>
-              <button onClick={() => { setEditingExpense(null); setIsExpenseModalOpen(true); }} className="bg-[#FF4747] text-white px-6 py-2.5 rounded-full border-2 border-[#2D3436] font-black italic text-[11px] shadow-[4px_4px_0px_#2D3436] active:translate-y-1 transition-all">+ 新增支出</button>
-            </div>
-            <div className="space-y-3">
-              {expenses.length === 0 ? (
-                <div className="py-24 text-center text-slate-300 font-black italic border-2 border-dashed border-slate-200 rounded-[32px]">尚未有任何紀錄</div>
-              ) : (
-                expenses.map(item => (
-                  <div key={item.id} className="comic-border p-4 bg-white rounded-[24px] flex justify-between items-center transition-all active:scale-[0.98] group" onClick={() => { setEditingExpense(item); setIsExpenseModalOpen(true); }}>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase italic">[{item.category}]</span>
-                        <h5 className="text-[15px] font-black italic text-[#2D3436] uppercase">{item.category === ExpenseCategory.OTHER ? item.name : (item.name || item.category)}</h5>
-                      </div>
-                      <p className="text-[10px] font-bold text-slate-300 italic">{item.date}</p>
-                    </div>
-                    <div className="text-right flex items-center gap-4">
-                      <div>
-                        <p className="text-[18px] font-black italic text-[#2D3436]">¥ {item.amountJpy}</p>
-                        <p className="text-[10px] font-bold text-slate-400 italic">$ {item.amountTwd} TWD</p>
-                      </div>
-                      <button onClick={(e) => { e.stopPropagation(); deleteExpense(item.id); }} className="p-2 text-slate-300 hover:text-red-500 transition-colors active:scale-90">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+          <div className="space-y-6 pb-12">
+             <div className="comic-border p-6 bg-[#2D3436] text-white rounded-[32px] shadow-[6px_6px_0px_#FFD93D]">
+                <p className="text-[10px] font-black text-[#FFD93D] uppercase tracking-widest mb-1 italic">支出預算控管</p>
+                <h3 className="text-4xl font-black italic tracking-tighter">¥ {totalExpenseJpy.toLocaleString()}</h3>
+                <p className="text-sm font-black text-[#4CB9E7] italic mt-1">≈ $ {totalExpenseTwd.toLocaleString()} TWD</p>
+             </div>
+             <div className="flex justify-between items-center px-2">
+                <h3 className="text-xl font-black italic">記帳明細</h3>
+                <button onClick={() => { setEditingExpense(null); setIsExpenseModalOpen(true); }} className="bg-[#FF4747] text-white px-5 py-2 rounded-full border-2 border-slate-900 text-sm font-black shadow-[3px_3px_0px_#2D3436]">+ 記一筆</button>
+             </div>
+             <div className="space-y-4">
+               {expenses.length === 0 ? <div className="text-center py-10 text-slate-300 font-black italic">尚無支出紀錄</div> : expenses.map(item => (
+                 <div key={item.id} className="comic-border p-4 bg-white rounded-[24px] flex justify-between items-center group active:scale-[0.98] transition-transform" onClick={() => { setEditingExpense(item); setIsExpenseModalOpen(true); }}>
+                   <div className="flex items-center gap-3">
+                     <div className="bg-slate-100 p-2 rounded-xl text-slate-400"><ReceiptText size={18}/></div>
+                     <div><span className="text-[9px] font-black text-slate-300">[{item.category}]</span><h5 className="text-base font-black italic text-slate-900 leading-tight">{item.name}</h5></div>
+                   </div>
+                   <div className="text-right">
+                     <p className="text-lg font-black italic text-slate-900">¥ {item.amountJpy}</p>
+                     <p className="text-[9px] font-black text-slate-400">$ {item.amountTwd} TWD</p>
+                   </div>
+                 </div>
+               ))}
+             </div>
           </div>
         )}
 
         {activeTab === TabType.GUIDE && (
-          <div className="flex flex-col pb-24 animate-fadeIn px-2">
-            <div className="comic-border p-5 bg-white rounded-[32px] mb-5 shadow-lg border-[4px] border-[#2D3436]">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest italic">手動調整匯率</h3>
-                <input type="number" step="0.001" className="w-24 bg-slate-50 text-[14px] font-black text-right border-[3px] border-[#2D3436] rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#4CB9E7]" value={customRate} onChange={e => setCustomRate(e.target.value)} />
+          <div className="flex flex-col animate-fadeIn space-y-6 pb-12">
+            <h2 className="text-2xl font-black italic text-center text-[#FFD93D] text-pop">台日幣換算器 💴</h2>
+            <div className="comic-border p-5 bg-white rounded-[32px] border-slate-900">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase italic">匯率 1 JPY = {customRate} TWD</h3>
+                <input type="number" step="0.001" className="w-24 bg-slate-50 text-base font-black text-right border-2 border-slate-900 rounded-xl px-2 py-1 focus:outline-none" value={customRate} onChange={e => setCustomRate(e.target.value)} />
               </div>
-              <div className="flex flex-col gap-3">
-                <button onClick={() => setIsTwdToJpy(false)} className={`w-full p-5 rounded-[24px] border-[4px] flex justify-between items-center transition-all ${!isTwdToJpy ? 'bg-[#2D3436] text-white border-[#2D3436] shadow-[5px_5px_0px_#FFD93D]' : 'bg-slate-50 text-gray-300 border-transparent'}`}>
-                  <p className="text-[12px] font-black opacity-40 uppercase tracking-widest italic">JPY</p>
-                  <p className="text-3xl font-black italic uppercase">¥ {!isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) / parseFloat(customRate)).toFixed(0)}</p>
+              <div className="flex flex-col gap-4">
+                <button onClick={() => setIsTwdToJpy(false)} className={`w-full p-6 rounded-[24px] border-2 flex justify-between items-center transition-all ${!isTwdToJpy ? 'bg-[#2D3436] text-white border-slate-900 shadow-[3px_3px_0px_#FFD93D]' : 'bg-slate-50 text-gray-300 border-transparent'}`}>
+                  <p className="text-[10px] font-black opacity-40 uppercase italic tracking-widest">JPY</p>
+                  <p className="text-3xl font-black italic">¥ {!isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) / parseFloat(customRate)).toFixed(0)}</p>
                 </button>
-                <button onClick={() => setIsTwdToJpy(true)} className={`w-full p-5 rounded-[24px] border-[4px] flex justify-between items-center transition-all ${isTwdToJpy ? 'bg-[#FF4747] text-white border-[#2D3436] shadow-[5px_5px_0px_#2D3436]' : 'bg-slate-50 text-gray-600 border-transparent'}`}>
-                  <p className="text-[12px] font-black opacity-40 uppercase tracking-widest italic">TWD</p>
-                  <p className="text-3xl font-black italic uppercase">$ {isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) * parseFloat(customRate)).toFixed(0)}</p>
+                <button onClick={() => setIsTwdToJpy(true)} className={`w-full p-6 rounded-[24px] border-2 flex justify-between items-center transition-all ${isTwdToJpy ? 'bg-[#FF4747] text-white border-slate-900 shadow-[3px_3px_0px_#2D3436]' : 'bg-slate-50 text-gray-300 border-transparent'}`}>
+                  <p className="text-[10px] font-black opacity-40 uppercase italic tracking-widest">TWD</p>
+                  <p className="text-3xl font-black italic">$ {isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) * parseFloat(customRate)).toFixed(0)}</p>
                 </button>
               </div>
             </div>
-            <div className="flex gap-3">
-              <div className="grid grid-cols-3 gap-3 flex-[3.5]">
-                {['7','8','9','4','5','6','1','2','3','0','.','C'].map(btn => (
-                  <button key={btn} onClick={() => btn === 'C' ? setCalcDisplay('0') : setCalcDisplay(prev => prev === '0' ? btn : prev + btn)} className={`comic-button h-16 rounded-2xl font-black text-2xl border-[3px] border-[#2D3436] shadow-[3px_3px_0px_#2D3436] flex items-center justify-center transition-all ${btn === 'C' ? 'bg-rose-50 text-rose-500 border-rose-200' : 'bg-white text-[#2D3436]'}`}>{btn}</button>
-                ))}
-                <button onClick={() => setCalcDisplay(prev => prev.length > 1 ? prev.slice(0, -1) : '0')} className="comic-button h-16 bg-slate-100 rounded-2xl border-[3px] border-[#2D3436] flex items-center justify-center col-span-3 text-slate-600 font-black italic text-sm uppercase tracking-[0.2em] shadow-[3px_3px_0px_#2D3436] active:scale-95">Delete</button>
-              </div>
-              <div className="flex flex-col gap-3 flex-1">
-                <button onClick={() => setCalcDisplay(prev => prev + '/')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436] active:scale-95"><Divide size={24} /></button>
-                <button onClick={() => setCalcDisplay(prev => prev + '*')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436] active:scale-95"><X size={24} /></button>
-                <button onClick={() => setCalcDisplay(prev => prev + '-')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436] active:scale-95"><Minus size={24} /></button>
-                <button onClick={() => setCalcDisplay(prev => prev + '+')} className="comic-button flex-1 bg-[#4CB9E7] text-white rounded-2xl font-black text-3xl border-[3px] border-[#2D3436] shadow-[4px_4px_0px_#2D3436] flex items-center justify-center min-h-[100px] active:scale-95"><Plus size={36} /></button>
-                <button onClick={() => setCalcDisplay(evaluateExpression(calcDisplay).toString())} className="comic-button flex-1 bg-[#FF4747] text-white rounded-2xl font-black border-[3px] border-[#2D3436] shadow-[5px_5px_0px_#2D3436] flex items-center justify-center min-h-[100px] active:scale-95"><Equal size={40} /></button>
-              </div>
+            <div className="grid grid-cols-4 gap-3">
+              {['7','8','9','/','4','5','6','*','1','2','3','-','0','.','C','+'].map(btn => (
+                <button key={btn} onClick={() => btn === 'C' ? setCalcDisplay('0') : setCalcDisplay(prev => prev === '0' ? btn : prev + btn)} className={`comic-button h-14 rounded-xl font-black text-xl border-2 border-slate-900 shadow-[2px_2px_0px_#2D3436] flex items-center justify-center transition-all ${btn === 'C' ? 'bg-rose-50 text-rose-500' : 'bg-white text-slate-900'}`}>{btn}</button>
+              ))}
+              <button onClick={() => setCalcDisplay(evaluateExpression(calcDisplay).toString())} className="comic-button col-span-4 h-14 bg-[#FF4747] text-white rounded-xl font-black border-2 border-slate-900 shadow-[3px_3px_0px_#2D3436] flex items-center justify-center italic tracking-widest uppercase text-sm">計算結果 <Equal size={20} className="ml-2" /></button>
             </div>
-            <button 
-              onClick={() => {
-                if(window.confirm('確定要清空資料並恢復預設內容嗎？(這通常能解決佈署後的資料消失問題)')) {
-                  localStorage.clear();
-                  window.location.reload();
-                }
-              }} 
-              className="mt-8 text-[10px] font-black text-slate-300 italic flex items-center justify-center gap-2 hover:text-[#FF4747] uppercase"
-            >
-              <Trash2 size={12}/> 重置所有快取資料
-            </button>
           </div>
         )}
 
         {activeTab === TabType.WEATHER && (
-          <div className="space-y-4 pb-40 animate-fadeIn px-1">
+          <div className="space-y-6 pb-12">
             <div className="flex justify-between items-center px-2">
-              <h2 className="text-lg font-black italic bubble-font tracking-tight text-indigo-600 uppercase">天氣穿著建議 ☀️</h2>
-              <button onClick={handleRefreshWeather} disabled={isWeatherUpdating} className="bg-[#FF4747] text-white px-4 py-1.5 rounded-full border-2 border-[#2D3436] font-black italic text-[10px] shadow-[3px_3px_0px_#2D3436] active:translate-y-1 transition-all flex items-center gap-1.5">
-                {isWeatherUpdating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 即時更新
+              <h2 className="text-2xl font-black italic text-indigo-600 text-pop">沖繩天氣預報 🌤️</h2>
+              {/* 天氣更新鍵 */}
+              <button onClick={refreshWeather} disabled={isWeatherRefreshing} className={`p-2.5 bg-white rounded-full border-2 border-slate-900 shadow-[3px_3px_0px_#2D3436] active:translate-y-0.5 transition-all ${isWeatherRefreshing ? 'animate-spin opacity-50' : ''}`}>
+                <RefreshCw size={22} className="text-indigo-600" />
               </button>
             </div>
-            {weatherForecast.map(w => (
-              <div key={w.date} className="comic-border p-5 bg-white rounded-[32px] shadow-sm">
-                <div className="flex justify-between items-center mb-5 border-b-2 border-slate-50 pb-3">
-                  <span className="text-[14px] font-black italic text-[#FF4747] uppercase">{w.date}</span>
-                  <span className="text-[10px] font-black text-indigo-600 italic bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-100">{w.clothingTip}</span>
+            <div className="space-y-4">
+              {weatherForecast.map(w => (
+                <div key={w.date} className="comic-border p-5 bg-white rounded-[32px]">
+                  <div className="flex justify-between items-center mb-4 pb-2 border-b-2 border-slate-50">
+                    <span className="text-lg font-black italic text-[#FF4747]">{w.date}</span>
+                    <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black tracking-tighter">{w.clothingTip}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    {['上午', '中午', '晚上'].map((label, i) => {
+                      const data = i === 0 ? w.morning : i === 1 ? w.noon : w.night;
+                      return (
+                        <div key={label} className="flex flex-col items-center gap-1.5 p-3 bg-slate-50 rounded-2xl border-2 border-slate-900">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">{label}</span>
+                          {data.icon === 'sun' ? <Sun size={20} className="text-amber-400" /> : data.icon === 'cloud' ? <Cloud size={20} className="text-slate-400" /> : <Moon size={20} className="text-indigo-400" />}
+                          <span className="text-base font-black italic tracking-tighter">{data.temp}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {['上午', '中午', '晚上'].map((label, i) => {
-                    const data = i === 0 ? w.morning : i === 1 ? w.noon : w.night;
-                    return (
-                      <div key={label} className="flex flex-col items-center gap-2 p-3 bg-slate-50 rounded-2xl border-2 border-[#2D3436] shadow-sm">
-                        <span className="text-[10px] font-black text-slate-400 italic uppercase">{label}</span>
-                        {data.icon === 'sun' ? <Sun size={26} className="text-amber-400" /> : data.icon === 'cloud' ? <Cloud size={26} className="text-slate-400" /> : <Moon size={26} className="text-indigo-400" />}
-                        <span className="text-[15px] font-black italic">{data.temp}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </main>
 
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
-      <SpotModal isOpen={isSpotModalOpen} onClose={() => { setIsSpotModalOpen(false); setEditingSpot(null); }} onSave={s => saveSpot(selectedDay, s)} initialSpot={editingSpot} />
-      <FoodModal isOpen={isFoodModalOpen} onClose={() => { setIsFoodModalOpen(false); setEditingFood(null); }} onSave={food => setFoodItems(prev => editingFood ? prev.map(f => f.id === food.id ? food : f) : [...prev, food])} initialFood={editingFood} />
-      <ExpenseModal isOpen={isExpenseModalOpen} onClose={() => { setIsExpenseModalOpen(false); setEditingExpense(null); }} onSave={exp => setExpenses(prev => editingExpense ? prev.map(e => e.id === exp.id ? exp : e) : [...prev, exp])} initialExpense={editingExpense} exchangeRate={parseFloat(customRate)} />
+      <SpotModal isOpen={isSpotModalOpen} onClose={() => setIsSpotModalOpen(false)} onSave={s => setItinerary(itinerary.map(d => d.day === selectedDay ? {...d, spots: editingSpot ? d.spots.map(x => x.id === s.id ? s : x) : [...d.spots, s].sort((a,b)=>a.time.localeCompare(b.time))} : d))} initialSpot={editingSpot} />
+      <FoodModal isOpen={isFoodModalOpen} onClose={() => setIsFoodModalOpen(false)} onSave={f => setFoodItems(prev => editingFood ? prev.map(x => x.id === f.id ? f : x) : [...prev, f])} initialFood={editingFood} />
+      <ExpenseModal isOpen={isExpenseModalOpen} onClose={() => setIsExpenseModalOpen(false)} onSave={e => setExpenses(prev => editingExpense ? prev.map(x => x.id === e.id ? e : x) : [...prev, e])} initialExpense={editingExpense} exchangeRate={parseFloat(customRate)} />
     </div>
   );
 };

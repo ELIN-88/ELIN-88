@@ -64,11 +64,11 @@ const SupermarketModal: React.FC<SupermarketModalProps> = ({ isOpen, onClose, on
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md rounded-[40px] max-h-[90vh] overflow-y-auto shadow-2xl border-4 border-slate-50">
         <div className="sticky top-0 bg-white border-b border-gray-100 p-6 flex justify-between items-center z-10">
           <h2 className="text-xl font-black text-gray-800 italic">編輯超市資訊 🛍️</h2>
-          <button onClick={onClose} className="p-2 text-gray-400"><X size={24} /></button>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-50 rounded-full"><X size={24} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -86,37 +86,17 @@ const SupermarketModal: React.FC<SupermarketModalProps> = ({ isOpen, onClose, on
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">類型</label>
-            <div className="flex gap-2">
-              {['超市', '便利商店', '藥妝店'].map(t => (
-                <button key={t} type="button" onClick={() => setFormData({...formData, type: t as any})} className={`flex-1 py-2 rounded-xl border-2 font-black text-[10px] transition-all ${formData.type === t ? 'bg-[#4CB9E7] border-slate-900 text-white' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>{t}</button>
+            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">支付方式 (點擊選擇/取消)</label>
+            <div className="flex flex-wrap gap-2">
+              {allPaymentMethods.map(m => (
+                <button key={m} type="button" onClick={() => togglePayment(m)} className={`px-4 py-2 rounded-xl border-2 font-black text-[11px] transition-all ${formData.paymentMethods?.includes(m) ? 'bg-[#FFD93D] border-slate-900 text-slate-900 shadow-[2px_2px_0px_#2D3436] scale-105' : 'bg-gray-50 border-gray-100 text-gray-300'}`}>{m}</button>
               ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">預估車程</label>
-              <input className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold focus:border-[#4CB9E7] focus:outline-none" value={formData.travelTime} onChange={e => setFormData({...formData, travelTime: e.target.value})} placeholder="例：5 min" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">預估距離</label>
-              <input className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold focus:border-[#4CB9E7] focus:outline-none" value={formData.travelDistance} onChange={e => setFormData({...formData, travelDistance: e.target.value})} placeholder="例：1.2 km" />
             </div>
           </div>
 
           <div>
             <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">營業時間</label>
             <input className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold focus:border-[#4CB9E7] focus:outline-none" value={formData.openingHours} onChange={e => setFormData({...formData, openingHours: e.target.value})} placeholder="例：09:00 - 24:00" />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">支付方式</label>
-            <div className="flex flex-wrap gap-2">
-              {allPaymentMethods.map(m => (
-                <button key={m} type="button" onClick={() => togglePayment(m)} className={`px-3 py-1.5 rounded-lg border-2 font-black text-[10px] transition-all ${formData.paymentMethods?.includes(m) ? 'bg-[#FFD93D] border-slate-900 text-slate-900 shadow-sm' : 'bg-gray-50 border-gray-100 text-gray-300'}`}>{m}</button>
-              ))}
-            </div>
           </div>
 
           <div>
