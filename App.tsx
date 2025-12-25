@@ -16,10 +16,12 @@ import {
   ReceiptText, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, RefreshCw, CheckCircle2
 } from 'lucide-react';
 
-const ITINERARY_KEY = 'shin_okinawa_final_v200';
-const FOOD_KEY = 'shin_okinawa_food_v200';
-const EXPENSES_KEY = 'shin_okinawa_expenses_v200';
-const WEATHER_KEY = 'shin_okinawa_weather_v200';
+// 使用統一的版本號 Key，避免資料遺失
+const STORAGE_VER = 'v2026_final_v1';
+const ITINERARY_KEY = `shin_okinawa_itinerary_${STORAGE_VER}`;
+const FOOD_KEY = `shin_okinawa_food_${STORAGE_VER}`;
+const EXPENSES_KEY = `shin_okinawa_expenses_${STORAGE_VER}`;
+const WEATHER_KEY = `shin_okinawa_weather_${STORAGE_VER}`;
 
 const evaluateExpression = (expr: string): number => {
   try {
@@ -46,6 +48,7 @@ const App: React.FC = () => {
   const [isWeatherUpdating, setIsWeatherUpdating] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
+  // 初始化資料邏輯修正：若 localStorage 無資料則讀取 constants
   const [itinerary, setItinerary] = useState<DayPlan[]>(() => {
     const saved = localStorage.getItem(ITINERARY_KEY);
     return saved ? JSON.parse(saved) : INITIAL_ITINERARY;
@@ -79,7 +82,7 @@ const App: React.FC = () => {
     setIsWeatherUpdating(true);
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
-      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣，返回符合結構的 JSON (4天): [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"建議"}]`;
+      const prompt = `搜尋沖繩那霸 2026/1/11-1/14 天氣預測。返回 JSON 陣列 (4天): [{"date":"1/11 (日)","morning":{"temp":"16°","icon":"cloud","desc":"多雲"},"noon":{"temp":"22°","icon":"sun","desc":"晴"},"night":{"temp":"17°","icon":"moon","desc":"涼"},"clothingTip":"洋蔥式穿法"}]`;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -130,7 +133,6 @@ const App: React.FC = () => {
     setItinerary(prev => prev.map(d => d.day === day ? { ...d, spots: d.spots.filter(s => s.id !== spotId) } : d));
   };
 
-  // Fix: Adding the missing deleteExpense function to manage expense state deletions.
   const deleteExpense = (id: string) => {
     setExpenses(prev => prev.filter(e => e.id !== id));
   };
@@ -151,6 +153,7 @@ const App: React.FC = () => {
       </header>
 
       <main className="relative">
+        {/* 1. 總覽分頁 */}
         {activeTab === TabType.OVERVIEW && (
           <div className="space-y-4 pb-32 animate-fadeIn pt-4 px-1">
             <div className="comic-border p-3.5 bg-white rounded-[24px]">
@@ -228,6 +231,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* 2. 行程分頁 */}
         {activeTab === TabType.ITINERARY && (
           <div className="space-y-4 pb-40 animate-fadeIn">
             <div className="sticky top-[-4px] z-[90] bg-[#FFFBEB]/95 backdrop-blur-md pt-3 pb-3 border-b-2 border-[#2D3436] -mx-3 px-3 shadow-sm flex items-center justify-between">
@@ -291,37 +295,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {activeTab === TabType.WEATHER && (
-          <div className="space-y-4 pb-40 animate-fadeIn px-1">
-            <div className="flex justify-between items-center px-2">
-              <h2 className="text-lg font-black italic bubble-font tracking-tight text-indigo-600 uppercase">天氣穿著建議 ☀️</h2>
-              <button onClick={handleRefreshWeather} disabled={isWeatherUpdating} className="bg-[#FF4747] text-white px-4 py-1.5 rounded-full border-2 border-[#2D3436] font-black italic text-[10px] shadow-[3px_3px_0px_#2D3436] active:translate-y-1 transition-all flex items-center gap-1.5">
-                {isWeatherUpdating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 即時更新
-              </button>
-            </div>
-            {weatherForecast.map(w => (
-              <div key={w.date} className="comic-border p-5 bg-white rounded-[32px] shadow-sm">
-                <div className="flex justify-between items-center mb-5 border-b-2 border-slate-50 pb-3">
-                  <span className="text-[14px] font-black italic text-[#FF4747]">{w.date}</span>
-                  <span className="text-[10px] font-black text-indigo-600 italic bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-100">{w.clothingTip}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {['上午', '中午', '晚上'].map((label, i) => {
-                    const data = i === 0 ? w.morning : i === 1 ? w.noon : w.night;
-                    return (
-                      <div key={label} className="flex flex-col items-center gap-2 p-3 bg-slate-50 rounded-2xl border-2 border-[#2D3436] shadow-sm">
-                        <span className="text-[10px] font-black text-slate-400 italic">{label}</span>
-                        {data.icon === 'sun' ? <Sun size={26} className="text-amber-400" /> : data.icon === 'cloud' ? <Cloud size={26} className="text-slate-400" /> : <Moon size={26} className="text-indigo-400" />}
-                        <span className="text-[15px] font-black italic">{data.temp}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
+        {/* 3. 美食分頁 */}
         {activeTab === TabType.FOOD && (
           <div className="space-y-5 pb-40 animate-fadeIn px-1">
             <div className="flex justify-between items-center px-2">
@@ -351,6 +325,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* 4. 超市分頁 */}
         {activeTab === TabType.SUPERMARKET && (
           <div className="space-y-5 pb-40 animate-fadeIn px-1">
             <h2 className="text-lg font-black italic px-2 bubble-font tracking-tight text-[#4CB9E7] uppercase">補給 (飯店優先) 🛒</h2>
@@ -371,6 +346,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* 5. 支出分頁 (優化後) */}
         {activeTab === TabType.EXPENSES && (
           <div className="space-y-4 pb-40 animate-fadeIn px-1">
             <div className="comic-border p-6 bg-[#2D3436] text-white rounded-[36px] shadow-[8px_8px_0px_#FFD93D]">
@@ -411,6 +387,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* 6. 匯率/計算機分頁 */}
         {activeTab === TabType.GUIDE && (
           <div className="flex flex-col pb-24 animate-fadeIn px-2">
             <div className="comic-border p-5 bg-white rounded-[32px] mb-5 shadow-lg border-[4px] border-[#2D3436]">
@@ -444,6 +421,38 @@ const App: React.FC = () => {
                 <button onClick={() => setCalcDisplay(evaluateExpression(calcDisplay).toString())} className="comic-button flex-1 bg-[#FF4747] text-white rounded-2xl font-black border-[3px] border-[#2D3436] shadow-[5px_5px_0px_#2D3436] flex items-center justify-center min-h-[100px]"><Equal size={40} /></button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 7. 天氣分頁 */}
+        {activeTab === TabType.WEATHER && (
+          <div className="space-y-4 pb-40 animate-fadeIn px-1">
+            <div className="flex justify-between items-center px-2">
+              <h2 className="text-lg font-black italic bubble-font tracking-tight text-indigo-600 uppercase">天氣穿著建議 ☀️</h2>
+              <button onClick={handleRefreshWeather} disabled={isWeatherUpdating} className="bg-[#FF4747] text-white px-4 py-1.5 rounded-full border-2 border-[#2D3436] font-black italic text-[10px] shadow-[3px_3px_0px_#2D3436] active:translate-y-1 transition-all flex items-center gap-1.5">
+                {isWeatherUpdating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 即時更新
+              </button>
+            </div>
+            {weatherForecast.map(w => (
+              <div key={w.date} className="comic-border p-5 bg-white rounded-[32px] shadow-sm">
+                <div className="flex justify-between items-center mb-5 border-b-2 border-slate-50 pb-3">
+                  <span className="text-[14px] font-black italic text-[#FF4747]">{w.date}</span>
+                  <span className="text-[10px] font-black text-indigo-600 italic bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-100">{w.clothingTip}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {['上午', '中午', '晚上'].map((label, i) => {
+                    const data = i === 0 ? w.morning : i === 1 ? w.noon : w.night;
+                    return (
+                      <div key={label} className="flex flex-col items-center gap-2 p-3 bg-slate-50 rounded-2xl border-2 border-[#2D3436] shadow-sm">
+                        <span className="text-[10px] font-black text-slate-400 italic">{label}</span>
+                        {data.icon === 'sun' ? <Sun size={26} className="text-amber-400" /> : data.icon === 'cloud' ? <Cloud size={26} className="text-slate-400" /> : <Moon size={26} className="text-indigo-400" />}
+                        <span className="text-[15px] font-black italic">{data.temp}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>
