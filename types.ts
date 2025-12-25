@@ -4,7 +4,6 @@ export enum TabType {
   ITINERARY = 'itinerary',
   FOOD = 'food',
   SUPERMARKET = 'supermarket',
-  WEATHER = 'weather',
   GUIDE = 'guide',
   EXPENSES = 'expenses'
 }

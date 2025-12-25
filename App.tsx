@@ -6,13 +6,14 @@ import BottomNav from './components/BottomNav';
 import SpotModal from './components/SpotModal';
 import FoodModal from './components/FoodModal';
 import ExpenseModal from './components/ExpenseModal';
+import { GoogleGenAI } from "@google/genai";
 import { 
   Plane, Hotel, MapPin, CloudSun, Sun, Cloud, Plus, Coins,
   Car, Utensils, Navigation2, Moon, Sparkles, WashingMachine, 
   Equal, MoveLeft, QrCode, Instagram, Trash2, Edit2, Soup, 
   Wallet, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, Beer, RefreshCw, CheckCircle2, 
   ReceiptText, Info, AlertCircle, ShoppingBag, Luggage, BatteryCharging, FlameKindling, ShieldAlert,
-  Search, ShieldCheck
+  Search, ShieldCheck, ExternalLink
 } from 'lucide-react';
 
 const STORAGE_PREFIX = 'okinawa_staff_v2026_final';
@@ -20,7 +21,6 @@ const KEYS = {
   ITINERARY: `${STORAGE_PREFIX}_itinerary`,
   FOOD: `${STORAGE_PREFIX}_food`,
   EXPENSES: `${STORAGE_PREFIX}_expenses`,
-  WEATHER: `${STORAGE_PREFIX}_weather`,
   RATE: `${STORAGE_PREFIX}_rate`
 };
 
@@ -32,13 +32,6 @@ const evaluateExpression = (expr: string): number => {
     return new Function(`return ${sanitized}`)() || 0;
   } catch (e) { return 0; }
 };
-
-const DEFAULT_WEATHER: WeatherForecast[] = [
-  { date: '1/11 (日)', morning: { temp: '16°', icon: 'cloud', desc: '多雲' }, noon: { temp: '22°', icon: 'sun', desc: '晴' }, night: { temp: '17°', icon: 'moon', desc: '涼' }, clothingTip: '洋蔥式穿法，內層薄長袖。' },
-  { date: '1/12 (一)', morning: { temp: '15°', icon: 'cloud', desc: '陰' }, noon: { temp: '21°', icon: 'sun', desc: '晴' }, night: { temp: '16°', icon: 'moon', desc: '涼' }, clothingTip: '海邊風強，必備防風外套。' },
-  { date: '1/13 (二)', morning: { temp: '17°', icon: 'sun', desc: '晴' }, noon: { temp: '23°', icon: 'sun', desc: '晴' }, night: { temp: '18°', icon: 'moon', desc: '涼' }, clothingTip: '穿搭以輕鬆、拍照好看為主。' },
-  { date: '1/14 (三)', morning: { temp: '16°', icon: 'cloud', desc: '多雲' }, noon: { temp: '20°', icon: 'cloud', desc: '陰' }, night: { temp: '17°', icon: 'moon', desc: '涼' }, clothingTip: '輕便保暖，方便搭機。' }
-];
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>(TabType.OVERVIEW);
@@ -55,20 +48,22 @@ const App: React.FC = () => {
   const [customRate, setCustomRate] = useState<string>(() => getSafeStorage(KEYS.RATE, '0.215'));
   const [calcDisplay, setCalcDisplay] = useState<string>('0');
   const [isTwdToJpy, setIsTwdToJpy] = useState<boolean>(false);
-  const [isWeatherRefreshing, setIsWeatherRefreshing] = useState(false);
+  
+  // Weather Search States
+  const [weatherSearchInfo, setWeatherSearchInfo] = useState<string>('');
+  const [weatherLinks, setWeatherLinks] = useState<any[]>([]);
+  const [isWeatherSearching, setIsWeatherSearching] = useState(false);
 
   const [itinerary, setItinerary] = useState<DayPlan[]>(() => getSafeStorage(KEYS.ITINERARY, INITIAL_ITINERARY));
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => getSafeStorage(KEYS.FOOD, FEATURED_FOOD));
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => getSafeStorage(KEYS.EXPENSES, []));
-  const [weatherForecast, setWeatherForecast] = useState<WeatherForecast[]>(() => getSafeStorage(KEYS.WEATHER, DEFAULT_WEATHER));
 
   useEffect(() => {
     localStorage.setItem(KEYS.ITINERARY, JSON.stringify(itinerary));
     localStorage.setItem(KEYS.FOOD, JSON.stringify(foodItems));
     localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
-    localStorage.setItem(KEYS.WEATHER, JSON.stringify(weatherForecast));
     localStorage.setItem(KEYS.RATE, JSON.stringify(customRate));
-  }, [itinerary, foodItems, expenses, weatherForecast, customRate]);
+  }, [itinerary, foodItems, expenses, customRate]);
 
   const activeDayPlan = useMemo(() => itinerary.find(d => d.day === selectedDay), [itinerary, selectedDay]);
   const totalExpenseJpy = useMemo(() => expenses.reduce((s, i) => s + (i.amountJpy || 0), 0), [expenses]);
@@ -81,12 +76,29 @@ const App: React.FC = () => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
 
-  const refreshWeather = () => {
-    setIsWeatherRefreshing(true);
-    setTimeout(() => {
-      setWeatherForecast([...DEFAULT_WEATHER]);
-      setIsWeatherRefreshing(false);
-    }, 1200);
+  const handleWeatherSearch = async () => {
+    setIsWeatherSearching(true);
+    setWeatherSearchInfo('');
+    setWeatherLinks([]);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: "請搜尋並顯示沖繩今日最新的天氣預報，包含溫度、降雨機率與穿著建議。",
+        config: {
+          tools: [{ googleSearch: {} }]
+        }
+      });
+      setWeatherSearchInfo(response.text || '未能獲取天氣資訊。');
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        setWeatherLinks(chunks.filter(c => c.web).map(c => c.web));
+      }
+    } catch (e) {
+      setWeatherSearchInfo('天氣搜尋失敗，請稍後再試。');
+    } finally {
+      setIsWeatherSearching(false);
+    }
   };
 
   return (
@@ -101,7 +113,7 @@ const App: React.FC = () => {
       <main className="tab-content relative">
         {activeTab === TabType.OVERVIEW && (
           <div className="space-y-6 pb-4">
-            {/* 1. 航班資訊 - 移至第一格 */}
+            {/* 1. 航班資訊 - 第一格 */}
             <section className="comic-border p-5 bg-white rounded-[32px]">
               <div className="flex items-center gap-2 mb-4">
                 <div className="bg-[#4CB9E7] p-1.5 rounded-lg text-white shadow-sm"><Plane size={20} /></div>
@@ -157,7 +169,46 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            {/* 3. 自駕守則 - 移至最後一格 */}
+            {/* 3. 實時天氣搜尋 - 總覽下方 */}
+            <section className="comic-border p-5 bg-[#4CB9E7] text-white rounded-[32px]">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-black flex items-center gap-2 italic uppercase tracking-wider"><CloudSun size={24} /> 沖繩今日天氣搜尋</h3>
+                <button 
+                  onClick={handleWeatherSearch} 
+                  disabled={isWeatherSearching}
+                  className="bg-white text-[#4CB9E7] p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#2D3436] active:translate-y-0.5 transition-all"
+                >
+                  {isWeatherSearching ? <RefreshCw size={18} className="animate-spin" /> : <Search size={18} />}
+                </button>
+              </div>
+              
+              {isWeatherSearching ? (
+                <div className="flex flex-col items-center py-6 gap-2">
+                  <Loader2 size={32} className="animate-spin" />
+                  <p className="text-xs font-black animate-pulse">正在獲取最新天氣情報...</p>
+                </div>
+              ) : weatherSearchInfo ? (
+                <div className="space-y-4">
+                  <div className="bg-white/10 p-4 rounded-2xl border border-white/20">
+                    <p className="text-xs font-bold leading-relaxed whitespace-pre-wrap">{weatherSearchInfo}</p>
+                  </div>
+                  {weatherLinks.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">參考來源：</p>
+                      {weatherLinks.map((link, idx) => (
+                        <a key={idx} href={link.uri} target="_blank" className="flex items-center gap-2 text-[10px] font-black bg-white/20 p-2 rounded-lg hover:bg-white/30 transition-all">
+                          <ExternalLink size={12} /> {link.title || '天氣資訊連結'}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[10px] font-black opacity-80 italic text-center py-4">點擊放大鏡搜尋今日即時天氣與建議。</p>
+              )}
+            </section>
+
+            {/* 4. 自駕守則 - 最後一格 */}
             <section className="comic-border p-5 bg-[#FF4747] text-white rounded-[32px]">
               <h3 className="text-lg font-black flex items-center gap-2 mb-4 italic uppercase tracking-wider"><Car size={24} /> 沖繩自駕安全守則 ⚠️</h3>
               <div className="grid grid-cols-3 gap-3 text-center">
@@ -323,40 +374,6 @@ const App: React.FC = () => {
                 <button key={btn} onClick={() => btn === 'C' ? setCalcDisplay('0') : setCalcDisplay(prev => prev === '0' ? btn : prev + btn)} className={`comic-button h-14 rounded-xl font-black text-xl border-2 border-slate-900 shadow-[2px_2px_0px_#2D3436] flex items-center justify-center transition-all ${btn === 'C' ? 'bg-rose-50 text-rose-500' : 'bg-white text-slate-900'}`}>{btn}</button>
               ))}
               <button onClick={() => setCalcDisplay(evaluateExpression(calcDisplay).toString())} className="comic-button col-span-4 h-14 bg-[#FF4747] text-white rounded-xl font-black border-2 border-slate-900 shadow-[3px_3px_0px_#2D3436] flex items-center justify-center italic tracking-widest uppercase text-sm">計算結果 <Equal size={20} className="ml-2" /></button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === TabType.WEATHER && (
-          <div className="space-y-6 pb-12">
-            <div className="flex justify-between items-center px-2">
-              <h2 className="text-2xl font-black italic text-indigo-600 text-pop">沖繩天氣預報 🌤️</h2>
-              {/* 天氣更新鍵 */}
-              <button onClick={refreshWeather} disabled={isWeatherRefreshing} className={`p-2.5 bg-white rounded-full border-2 border-slate-900 shadow-[3px_3px_0px_#2D3436] active:translate-y-0.5 transition-all ${isWeatherRefreshing ? 'animate-spin opacity-50' : ''}`}>
-                <RefreshCw size={22} className="text-indigo-600" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              {weatherForecast.map(w => (
-                <div key={w.date} className="comic-border p-5 bg-white rounded-[32px]">
-                  <div className="flex justify-between items-center mb-4 pb-2 border-b-2 border-slate-50">
-                    <span className="text-lg font-black italic text-[#FF4747]">{w.date}</span>
-                    <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black tracking-tighter">{w.clothingTip}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    {['上午', '中午', '晚上'].map((label, i) => {
-                      const data = i === 0 ? w.morning : i === 1 ? w.noon : w.night;
-                      return (
-                        <div key={label} className="flex flex-col items-center gap-1.5 p-3 bg-slate-50 rounded-2xl border-2 border-slate-900">
-                          <span className="text-[9px] font-black text-slate-400 uppercase">{label}</span>
-                          {data.icon === 'sun' ? <Sun size={20} className="text-amber-400" /> : data.icon === 'cloud' ? <Cloud size={20} className="text-slate-400" /> : <Moon size={20} className="text-indigo-400" />}
-                          <span className="text-base font-black italic tracking-tighter">{data.temp}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}

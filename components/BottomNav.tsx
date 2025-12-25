@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Plane, Calendar, CloudSun, Utensils, Coins, ShoppingBag, ReceiptText } from 'lucide-react';
+import { Plane, Calendar, Utensils, Coins, ShoppingBag, ReceiptText } from 'lucide-react';
 import { TabType } from '../types';
 
 interface BottomNavProps {
@@ -16,7 +16,6 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
     { id: TabType.SUPERMARKET, icon: <ShoppingBag size={18} />, label: '超市' },
     { id: TabType.EXPENSES, icon: <ReceiptText size={18} />, label: '支出' },
     { id: TabType.GUIDE, icon: <Coins size={18} />, label: '匯率' },
-    { id: TabType.WEATHER, icon: <CloudSun size={18} />, label: '天氣' },
   ];
 
   return (
