@@ -1,7 +1,20 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import GoogleGenAIType from "@google/genai";
-import { INITIAL_ITINERARY, FEATURED_FOOD, DEFAULT_SUPERMARKETS } from './constants';
 
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { TabType, DayPlan, Spot, SpotCategory, FoodItem, WeatherForecast, SupermarketItem, ExpenseItem, ExpenseCategory } from './types';
+import { INITIAL_ITINERARY, FEATURED_FOOD, DEFAULT_SUPERMARKETS } from './constants';
+import BottomNav from './components/BottomNav';
+import SpotModal from './components/SpotModal';
+import FoodModal from './components/FoodModal';
+import ExpenseModal from './components/ExpenseModal';
+import { GoogleGenAI, Type } from "@google/genai";
+import { 
+  Plane, Hotel, MapPin, CloudSun, Sun, Cloud, Plus, Coins,
+  Car, Info, ArrowRight, Utensils, Beer, Luggage, Clock, ShoppingBag, 
+  Navigation2, Moon, Lightbulb, Sparkles, PackageCheck, WashingMachine, 
+  Equal, MoveLeft, AlertTriangle, QrCode, ShieldCheck, Instagram, CreditCard, 
+  Trash2, Edit2, Soup, Wallet, Banknote, Search, Ban, XCircle, UserCheck,
+  ReceiptText, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, RefreshCw, CheckCircle2
+} from 'lucide-react';
 
 const STORAGE_PREFIX = 'okinawa_v2026_final_stable';
 const KEYS = {
@@ -11,11 +24,11 @@ const KEYS = {
   WEATHER: `${STORAGE_PREFIX}_weather`
 };
 
+// 修復正則表達式：轉義斜線 / 防止編譯器報錯
 const evaluateExpression = (expr: string): number => {
   try {
-    const sanitizedExpr = expr.replace(/[^-+*/.0-9]/g, '');
+    const sanitizedExpr = expr.replace(/[^-+*\/0-9.]/g, ''); 
     if (!sanitizedExpr) return 0;
-    // 使用 Function 替代 eval，並加入安全處理
     return new Function(`return ${sanitizedExpr}`)() || 0;
   } catch { return 0; }
 };
@@ -70,8 +83,11 @@ const App: React.FC = () => {
   const totalExpenseTwd = useMemo(() => expenses.reduce((s, i) => s + (i.amountTwd || 0), 0), [expenses]);
 
   const handleRefreshWeather = async () => {
-    const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
-    if (!apiKey) return;
+    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
+    if (!apiKey) {
+      alert("請確保已配置 API Key 以更新天氣。");
+      return;
+    }
 
     setIsWeatherUpdating(true);
     try {
@@ -88,7 +104,7 @@ const App: React.FC = () => {
   };
 
   const updateAutoTraffic = async (targetDay: number) => {
-    const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
+    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
     const dayPlan = itinerary.find(d => d.day === targetDay);
     if (!dayPlan || dayPlan.spots.length < 2 || !apiKey) return;
     
@@ -211,15 +227,15 @@ const App: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 text-center font-black">
                 {[
                   { icon: <MoveLeft size={20}/>, label: '靠左行駛' },
-                  { icon: <span className="text-lg">止</span>, label: '必停三秒' },
+                  { icon: <span className="text-lg font-black">止</span>, label: '必停三秒' },
                   { icon: <SmartphoneCharging size={20} className="text-yellow-300"/>, label: '禁止手機' },
                   { icon: <BeerOff size={20} className="text-yellow-300"/>, label: '嚴禁酒駕' },
                   { icon: <AlertTriangle size={20}/>, label: '紅燈禁轉' },
-                  { icon: <span className="text-lg">60</span>, label: '遵守速限' }
+                  { icon: <span className="text-lg font-black">60</span>, label: '遵守速限' }
                 ].map((rule, i) => (
                   <div key={i} className="bg-white/10 p-2 rounded-xl flex flex-col items-center border border-white/20">
                     <div className="mb-1">{rule.icon}</div>
-                    <span className="text-[8px] leading-none uppercase">{rule.label}</span>
+                    <span className="text-[8px] leading-none uppercase font-bold">{rule.label}</span>
                   </div>
                 ))}
               </div>
@@ -241,7 +257,7 @@ const App: React.FC = () => {
             {activeDayPlan && (
               <div className="pt-6 relative">
                 <div className="flex justify-between items-center px-2 mb-6">
-                  <h2 className="text-lg font-black italic bubble-font tracking-tight text-[#2D3436]">{activeDayPlan.title}</h2>
+                  <h2 className="text-lg font-black italic bubble-font tracking-tight text-[#2D3436] uppercase">{activeDayPlan.title}</h2>
                   <button onClick={() => { setEditingSpot(null); setIsSpotModalOpen(true); }} className="bg-[#4CB9E7] text-white px-4 py-1.5 rounded-full border-2 border-[#2D3436] font-black italic text-[10px] shadow-[2.5px_2.5px_0px_#2D3436] active:translate-y-1 transition-all">+ 增加景點</button>
                 </div>
 
@@ -300,7 +316,7 @@ const App: React.FC = () => {
               <div key={food.id} className="comic-border p-5 bg-white rounded-[32px] relative overflow-hidden shadow-sm">
                 <div className="absolute top-0 left-0 bg-[#FFD93D] px-4 py-1.5 border-r-[3px] border-b-[3px] border-[#2D3436] text-[10px] font-black italic shadow-sm">Day {food.day}</div>
                 <div className="flex justify-between items-start mt-6 mb-2">
-                  <h4 className="text-xl font-black italic tracking-tight">{food.name}</h4>
+                  <h4 className="text-xl font-black italic tracking-tight uppercase">{food.name}</h4>
                   <div className="flex gap-3">
                     <button onClick={() => { setEditingFood(food); setIsFoodModalOpen(true); }} className="text-slate-300 hover:text-[#2D3436] transition-all"><Edit2 size={18} /></button>
                     <button onClick={() => setFoodItems(prev => prev.filter(f => f.id !== food.id))} className="text-slate-300 hover:text-red-500 transition-all"><Trash2 size={18} /></button>
@@ -324,11 +340,11 @@ const App: React.FC = () => {
             <h2 className="text-lg font-black italic px-2 bubble-font tracking-tight text-[#4CB9E7] uppercase">補給 (飯店優先) 🛒</h2>
             {DEFAULT_SUPERMARKETS.map(shop => (
               <div key={shop.id} className="comic-border p-5 bg-white rounded-[32px] relative shadow-sm">
-                <div className="absolute top-0 left-0 bg-[#4CB9E7] text-white px-4 py-1.5 border-r-[3px] border-b-[3px] border-[#2D3436] text-[10px] font-black italic">
+                <div className="absolute top-0 left-0 bg-[#4CB9E7] text-white px-4 py-1.5 border-r-[3px] border-b-[3px] border-[#2D3436] text-[10px] font-black italic uppercase">
                   {shop.id === 's3' || shop.id === 's-h1' ? '飯店首選' : `Day ${shop.day}`}
                 </div>
-                <h4 className="text-lg font-black italic mt-6">{shop.name}</h4>
-                <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-black mb-4">
+                <h4 className="text-lg font-black italic mt-6 uppercase">{shop.name}</h4>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-black mb-4 uppercase">
                   <div className="bg-slate-50 p-2.5 rounded-xl flex items-center gap-2 shadow-sm border border-slate-100"><Clock size={14} className="text-[#4CB9E7]"/> {shop.openingHours}</div>
                   <div className="bg-slate-50 p-2.5 rounded-xl flex items-center gap-2 shadow-sm border border-slate-100"><Wallet size={14} className="text-[#4CB9E7]"/> {shop.paymentMethods.join('/')}</div>
                 </div>
@@ -358,8 +374,8 @@ const App: React.FC = () => {
                   <div key={item.id} className="comic-border p-4 bg-white rounded-[24px] flex justify-between items-center transition-all active:scale-[0.98] group" onClick={() => { setEditingExpense(item); setIsExpenseModalOpen(true); }}>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase">[{item.category}]</span>
-                        <h5 className="text-[15px] font-black italic text-[#2D3436]">{item.category === ExpenseCategory.OTHER ? item.name : (item.name || item.category)}</h5>
+                        <span className="bg-[#FFD93D] text-[#2D3436] text-[8.5px] font-black px-2 py-0.5 rounded-md border border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] uppercase italic">[{item.category}]</span>
+                        <h5 className="text-[15px] font-black italic text-[#2D3436] uppercase">{item.category === ExpenseCategory.OTHER ? item.name : (item.name || item.category)}</h5>
                       </div>
                       <p className="text-[10px] font-bold text-slate-300 italic">{item.date}</p>
                     </div>
@@ -368,7 +384,7 @@ const App: React.FC = () => {
                         <p className="text-[18px] font-black italic text-[#2D3436]">¥ {item.amountJpy}</p>
                         <p className="text-[10px] font-bold text-slate-400 italic">$ {item.amountTwd} TWD</p>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); deleteExpense(item.id); }} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                      <button onClick={(e) => { e.stopPropagation(); deleteExpense(item.id); }} className="p-2 text-slate-300 hover:text-red-500 transition-colors active:scale-90">
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -388,28 +404,28 @@ const App: React.FC = () => {
               </div>
               <div className="flex flex-col gap-3">
                 <button onClick={() => setIsTwdToJpy(false)} className={`w-full p-5 rounded-[24px] border-[4px] flex justify-between items-center transition-all ${!isTwdToJpy ? 'bg-[#2D3436] text-white border-[#2D3436] shadow-[5px_5px_0px_#FFD93D]' : 'bg-slate-50 text-gray-300 border-transparent'}`}>
-                  <p className="text-[12px] font-black opacity-40 uppercase tracking-widest">JPY</p>
-                  <p className="text-3xl font-black italic">¥ {!isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) / parseFloat(customRate)).toFixed(0)}</p>
+                  <p className="text-[12px] font-black opacity-40 uppercase tracking-widest italic">JPY</p>
+                  <p className="text-3xl font-black italic uppercase">¥ {!isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) / parseFloat(customRate)).toFixed(0)}</p>
                 </button>
                 <button onClick={() => setIsTwdToJpy(true)} className={`w-full p-5 rounded-[24px] border-[4px] flex justify-between items-center transition-all ${isTwdToJpy ? 'bg-[#FF4747] text-white border-[#2D3436] shadow-[5px_5px_0px_#2D3436]' : 'bg-slate-50 text-gray-600 border-transparent'}`}>
-                  <p className="text-[12px] font-black opacity-40 uppercase tracking-widest">TWD</p>
-                  <p className="text-3xl font-black italic">$ {isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) * parseFloat(customRate)).toFixed(0)}</p>
+                  <p className="text-[12px] font-black opacity-40 uppercase tracking-widest italic">TWD</p>
+                  <p className="text-3xl font-black italic uppercase">$ {isTwdToJpy ? calcDisplay : (evaluateExpression(calcDisplay) * parseFloat(customRate)).toFixed(0)}</p>
                 </button>
               </div>
             </div>
             <div className="flex gap-3">
               <div className="grid grid-cols-3 gap-3 flex-[3.5]">
                 {['7','8','9','4','5','6','1','2','3','0','.','C'].map(btn => (
-                  <button key={btn} onClick={() => btn === 'C' ? setCalcDisplay('0') : setCalcDisplay(prev => prev === '0' ? btn : prev + btn)} className={`comic-button h-16 rounded-2xl font-black text-2xl border-[3px] border-[#2D3436] shadow-[3px_3px_0px_#2D3436] flex items-center justify-center ${btn === 'C' ? 'bg-rose-50 text-rose-500 border-rose-200' : 'bg-white text-[#2D3436]'}`}>{btn}</button>
+                  <button key={btn} onClick={() => btn === 'C' ? setCalcDisplay('0') : setCalcDisplay(prev => prev === '0' ? btn : prev + btn)} className={`comic-button h-16 rounded-2xl font-black text-2xl border-[3px] border-[#2D3436] shadow-[3px_3px_0px_#2D3436] flex items-center justify-center transition-all ${btn === 'C' ? 'bg-rose-50 text-rose-500 border-rose-200' : 'bg-white text-[#2D3436]'}`}>{btn}</button>
                 ))}
-                <button onClick={() => setCalcDisplay(prev => prev.length > 1 ? prev.slice(0, -1) : '0')} className="comic-button h-16 bg-slate-100 rounded-2xl border-[3px] border-[#2D3436] flex items-center justify-center col-span-3 text-slate-600 font-black italic text-sm uppercase tracking-[0.2em] shadow-[3px_3px_0px_#2D3436]">Delete</button>
+                <button onClick={() => setCalcDisplay(prev => prev.length > 1 ? prev.slice(0, -1) : '0')} className="comic-button h-16 bg-slate-100 rounded-2xl border-[3px] border-[#2D3436] flex items-center justify-center col-span-3 text-slate-600 font-black italic text-sm uppercase tracking-[0.2em] shadow-[3px_3px_0px_#2D3436] active:scale-95">Delete</button>
               </div>
               <div className="flex flex-col gap-3 flex-1">
-                <button onClick={() => setCalcDisplay(prev => prev + '/')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436]"><Divide size={24} /></button>
-                <button onClick={() => setCalcDisplay(prev => prev + '*')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436]"><X size={24} /></button>
-                <button onClick={() => setCalcDisplay(prev => prev + '-')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436]"><Minus size={24} /></button>
-                <button onClick={() => setCalcDisplay(prev => prev + '+')} className="comic-button flex-1 bg-[#4CB9E7] text-white rounded-2xl font-black text-3xl border-[3px] border-[#2D3436] shadow-[4px_4px_0px_#2D3436] flex items-center justify-center min-h-[100px]"><Plus size={36} /></button>
-                <button onClick={() => setCalcDisplay(evaluateExpression(calcDisplay).toString())} className="comic-button flex-1 bg-[#FF4747] text-white rounded-2xl font-black border-[3px] border-[#2D3436] shadow-[5px_5px_0px_#2D3436] flex items-center justify-center min-h-[100px]"><Equal size={40} /></button>
+                <button onClick={() => setCalcDisplay(prev => prev + '/')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436] active:scale-95"><Divide size={24} /></button>
+                <button onClick={() => setCalcDisplay(prev => prev + '*')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436] active:scale-95"><X size={24} /></button>
+                <button onClick={() => setCalcDisplay(prev => prev + '-')} className="comic-button h-16 bg-white border-[3px] border-[#2D3436] rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_#2D3436] active:scale-95"><Minus size={24} /></button>
+                <button onClick={() => setCalcDisplay(prev => prev + '+')} className="comic-button flex-1 bg-[#4CB9E7] text-white rounded-2xl font-black text-3xl border-[3px] border-[#2D3436] shadow-[4px_4px_0px_#2D3436] flex items-center justify-center min-h-[100px] active:scale-95"><Plus size={36} /></button>
+                <button onClick={() => setCalcDisplay(evaluateExpression(calcDisplay).toString())} className="comic-button flex-1 bg-[#FF4747] text-white rounded-2xl font-black border-[3px] border-[#2D3436] shadow-[5px_5px_0px_#2D3436] flex items-center justify-center min-h-[100px] active:scale-95"><Equal size={40} /></button>
               </div>
             </div>
             <button 
@@ -419,7 +435,7 @@ const App: React.FC = () => {
                   window.location.reload();
                 }
               }} 
-              className="mt-8 text-[10px] font-black text-slate-300 italic flex items-center justify-center gap-2 hover:text-[#FF4747]"
+              className="mt-8 text-[10px] font-black text-slate-300 italic flex items-center justify-center gap-2 hover:text-[#FF4747] uppercase"
             >
               <Trash2 size={12}/> 重置所有快取資料
             </button>
@@ -437,7 +453,7 @@ const App: React.FC = () => {
             {weatherForecast.map(w => (
               <div key={w.date} className="comic-border p-5 bg-white rounded-[32px] shadow-sm">
                 <div className="flex justify-between items-center mb-5 border-b-2 border-slate-50 pb-3">
-                  <span className="text-[14px] font-black italic text-[#FF4747]">{w.date}</span>
+                  <span className="text-[14px] font-black italic text-[#FF4747] uppercase">{w.date}</span>
                   <span className="text-[10px] font-black text-indigo-600 italic bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-100">{w.clothingTip}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
