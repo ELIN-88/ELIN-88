@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { MapPin, Camera, Car, Fuel, Users, Image as ImageIcon, Edit2, Trash2 } from 'lucide-react';
-import { Spot, SpotCategory } from '../types';
+import { MapPin, Image as ImageIcon, Edit2, Trash2, Clock, Navigation, CheckCircle2, QrCode, ShieldCheck } from 'lucide-react';
+import { Spot } from '../types';
 
 interface SpotCardProps {
   spot: Spot;
@@ -25,84 +25,73 @@ const SpotCard: React.FC<SpotCardProps> = ({ spot, onEdit, onDelete }) => {
     }
   };
 
-  const getCategoryColor = (cat: SpotCategory) => {
-    switch (cat) {
-      case SpotCategory.FOOD: return 'bg-rose-100 text-[#FF4747] border-[#FF4747]/20';
-      case SpotCategory.ACTIVITY: return 'bg-sky-100 text-[#4CB9E7] border-[#4CB9E7]/20';
-      case SpotCategory.SHOPPING: return 'bg-pink-100 text-pink-500 border-pink-200';
-      case SpotCategory.SIGHTS: return 'bg-emerald-100 text-emerald-600 border-emerald-200';
-      case SpotCategory.HOTEL: return 'bg-indigo-100 text-indigo-600 border-indigo-200';
-      case SpotCategory.TRANSPORT: return 'bg-slate-100 text-slate-500 border-slate-200';
-      default: return 'bg-slate-100 text-slate-500 border-slate-200';
-    }
-  };
-
   return (
-    <div className="anime-card p-6 border-4 border-white shadow-xl shadow-slate-100/50">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-black text-gray-800 tracking-tight">{spot.time}</span>
-          <span className={`px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-widest sticker-label ${getCategoryColor(spot.category)}`}>
-            {spot.category}
-          </span>
+    <div className="comic-border p-4 mb-6 bg-white rounded-[28px] relative shadow-sm border-[3px] border-[#2D3436]">
+      {/* 頂部時間與操作按鈕 */}
+      <div className="flex items-center justify-between mb-3 border-b-2 border-slate-50 pb-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[12px] font-black italic bg-[#FFD93D] px-2.5 py-1 rounded-lg border-2 border-slate-900 shadow-[2px_2px_0px_#2D3436]">{spot.time}</span>
         </div>
-        <div className="flex gap-1 opacity-20 hover:opacity-100 transition-opacity">
-          <button onClick={() => onEdit(spot)} className="p-2 text-slate-400"><Edit2 size={16} /></button>
-          <button onClick={() => onDelete(spot.id)} className="p-2 text-slate-400"><Trash2 size={16} /></button>
+        <div className="flex gap-2.5">
+          <button onClick={() => onEdit(spot)} className="text-slate-300 hover:text-slate-900 transition-colors"><Edit2 size={16} /></button>
+          <button onClick={() => onDelete(spot.id)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
         </div>
       </div>
 
-      <div className="mb-5">
-        <h3 className="text-xl font-black text-gray-800 leading-tight mb-2">{spot.name}</h3>
-        <p className="text-xs font-bold text-gray-400 leading-relaxed">{spot.description}</p>
+      {/* 核心內容區 */}
+      <div className="mb-4">
+        <h3 className="text-base font-black text-gray-800 mb-2 italic tracking-tight">{spot.name}</h3>
+        
+        {/* 狀態標籤區 - 直觀且清晰 */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {spot.isReserved && (
+            <div className="flex items-center gap-1 bg-blue-500 text-white px-2 py-0.5 rounded-full border-2 border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] text-[8px] font-black italic">
+              <CheckCircle2 size={10} /> 已預約
+            </div>
+          )}
+          {spot.isPaid && (
+            <div className="flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full border-2 border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] text-[8px] font-black italic">
+              <ShieldCheck size={10} /> 已付款
+            </div>
+          )}
+          {spot.showQRCode && (
+            <div className="flex items-center gap-1 bg-purple-500 text-white px-2 py-0.5 rounded-full border-2 border-[#2D3436] shadow-[1.5px_1.5px_0px_#2D3436] text-[8px] font-black italic">
+              <QrCode size={10} /> QR Code
+            </div>
+          )}
+        </div>
+
+        {/* 備註對話框 - 完整顯示，不截斷文字 */}
+        <div className="relative bg-slate-50 p-3 rounded-2xl border-2 border-[#2D3436] mt-2 shadow-inner">
+          <div className="absolute top-[-8px] left-4 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-[#2D3436]"></div>
+          <p className="text-[10px] font-bold text-gray-700 leading-relaxed italic whitespace-pre-wrap">{spot.description || "暫無備註"}</p>
+        </div>
       </div>
 
-      {spot.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-5">
-          {spot.tags.map((tag) => (
-            <span key={tag} className="px-3 py-1 rounded-xl text-[10px] font-black bg-[#FFD93D]/10 text-[#B08A00] border border-[#FFD93D]/30 italic shadow-sm">#{tag}</span>
-          ))}
+      {/* 交通估算 */}
+      {(spot.travelTime || spot.travelDistance) && (
+        <div className="mb-4 flex gap-2">
+          <div className="flex-1 bg-blue-50 p-2 rounded-xl border-2 border-[#2D3436] flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_#2D3436]">
+            <Clock size={12} className="text-blue-500" />
+            <span className="text-[9px] font-black text-[#2D3436] italic">{spot.travelTime}</span>
+          </div>
+          <div className="flex-1 bg-rose-50 p-2 rounded-xl border-2 border-[#2D3436] flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_#2D3436]">
+            <Navigation size={12} className="text-rose-500" />
+            <span className="text-[9px] font-black text-[#2D3436] italic">{spot.travelDistance}</span>
+          </div>
         </div>
       )}
 
-      {(spot.parkingInfo || spot.gasInfo) && (
-        <div className="flex gap-3 mb-6">
-          {spot.parkingInfo && (
-            <div className="flex-1 bg-slate-50/80 p-3 rounded-2xl flex items-center gap-2 border-2 border-slate-50">
-              <Car size={14} className="text-[#4CB9E7]" />
-              <span className="text-[10px] text-gray-400 font-black truncate">{spot.parkingInfo}</span>
-            </div>
-          )}
-          {spot.gasInfo && (
-            <div className="flex-1 bg-slate-50/80 p-3 rounded-2xl flex items-center gap-2 border-2 border-slate-50">
-              <Fuel size={14} className="text-orange-400" />
-              <span className="text-[10px] text-gray-400 font-black truncate">{spot.gasInfo}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="flex gap-3">
-        <a 
-          href={spot.mapUrl}
-          target="_blank" rel="noopener noreferrer"
-          className="flex-1 bg-[#4CB9E7] text-white py-4 rounded-[24px] flex items-center justify-center gap-2 text-xs font-black active:bg-[#3AA8D6] shadow-lg shadow-blue-100 transition-all"
-        >
-          <MapPin size={16} /> 導航任務
+      {/* 底部按鈕 */}
+      <div className="flex gap-2">
+        <a href={spot.mapUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-[#FF4747] text-white py-3 rounded-[20px] flex items-center justify-center gap-2 text-[11px] font-black italic comic-border comic-button shadow-md">
+          <MapPin size={16} /> 開啟導航
         </a>
-        <label className="w-14 bg-white border-2 border-slate-100 rounded-[24px] flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors shadow-sm">
+        <label className="px-4 border-[3px] border-slate-900 rounded-[20px] flex items-center justify-center cursor-pointer bg-white comic-button shadow-sm">
           <input type="file" className="hidden" onChange={handleFileUpload} />
-          <ImageIcon size={18} className="text-slate-300" />
+          <ImageIcon size={16} className="text-slate-900" />
         </label>
       </div>
-
-      {photos.length > 0 && (
-        <div className="flex gap-3 mt-6 overflow-x-auto pb-2 custom-scrollbar">
-          {photos.map((src, idx) => (
-            <img key={idx} src={src} className="h-14 w-14 object-cover rounded-[18px] border-4 border-white shadow-md shrink-0" />
-          ))}
-        </div>
-      )}
     </div>
   );
 };

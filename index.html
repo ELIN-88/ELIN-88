@@ -4,52 +4,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>沖繩員旅 2026 | Anime Lifestyle Guide</title>
+    <title>小新風．沖繩旅遊GO!</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@500;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --anime-red: #FF4747; /* 小新紅/小丸子紅 */
-            --anime-blue: #4CB9E7; /* 沖繩動漫藍 */
-            --anime-yellow: #FFD93D; /* 活潑黃 */
-            --bg-creamy: #FFFBEB; /* 溫暖奶油色背景 */
+            --shin-yellow: #FFD93D;
+            --shin-red: #FF4747;
+            --shin-blue: #4CB9E7;
+            --shin-border: #2D3436;
         }
         body {
             font-family: 'Noto Sans TC', sans-serif;
-            background-color: var(--bg-creamy);
-            color: #444;
+            background-color: #FFFBEB;
+            color: #2D3436;
             -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
         }
-        .anime-card {
-            background: #FFFFFF;
-            border: 2px solid #F1F5F9;
-            border-radius: 32px;
-            box-shadow: 4px 4px 0px 0px rgba(0,0,0,0.03);
-            transition: transform 0.2s ease;
+        .comic-border {
+            border: 4px solid var(--shin-border);
+            box-shadow: 4px 4px 0px var(--shin-border);
         }
-        .anime-card:active {
-            transform: scale(0.98);
+        .comic-button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0px var(--shin-border);
         }
-        .timeline-line {
-            background: repeating-linear-gradient(to bottom, #E2E8F0, #E2E8F0 6px, transparent 6px, transparent 12px);
+        .bubble-font {
+            font-family: 'ZCOOL KuaiLe', cursive;
         }
-        .custom-scrollbar::-webkit-scrollbar {
-            height: 6px;
+        /* 隱藏捲軸但保持功能 */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: var(--anime-yellow);
-            border-radius: 10px;
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
-        @keyframes bounceIn {
-            0% { opacity: 0; transform: scale(0.95); }
-            70% { transform: scale(1.02); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-        .animate-bounceIn {
-            animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-        .sticker-label {
-            box-shadow: 2px 2px 0px 0px rgba(0,0,0,0.05);
+        main {
+            padding-bottom: 140px; /* 預留底部空間確保導航不遮擋內容 */
         }
     </style>
 <script type="importmap">

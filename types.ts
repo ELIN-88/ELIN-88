@@ -4,9 +4,9 @@ export enum TabType {
   ITINERARY = 'itinerary',
   FOOD = 'food',
   SUPERMARKET = 'supermarket',
-  MAP = 'map',
+  WEATHER = 'weather',
   GUIDE = 'guide',
-  WEATHER = 'weather'
+  EXPENSES = 'expenses'
 }
 
 export enum SpotCategory {
@@ -16,6 +16,32 @@ export enum SpotCategory {
   SIGHTS = '景點',
   HOTEL = '酒店',
   TRANSPORT = '交通'
+}
+
+export enum ExpenseCategory {
+  BREAKFAST = '早餐',
+  LUNCH = '午餐',
+  DINNER = '晚餐',
+  SNACK = '點心',
+  LATE_NIGHT = '宵夜',
+  DRINK = '飲品',
+  TOY = '玩具',
+  SOUVENIR = '伴手禮',
+  OTHER = '其他'
+}
+
+export interface ExpenseItem {
+  id: string;
+  date: string;
+  name: string;
+  category: ExpenseCategory;
+  amountJpy: number;
+  amountTwd: number;
+  taxIncluded: boolean;
+  paymentMethod: '現金' | '信用卡';
+  note: string;
+  photo?: string;
+  createdAt: number;
 }
 
 export interface Spot {
@@ -30,21 +56,39 @@ export interface Spot {
   parkingInfo?: string;
   gasInfo?: string;
   photoTips?: string;
-  groupFriendly?: boolean; // 7-person friendly
-  travelTime?: string;     // 到下一個點的車程時間 (例如: 15 min)
-  travelDistance?: string; // 到下一個點的距離 (例如: 8.5 km)
+  groupFriendly?: boolean;
+  travelTime?: string;
+  travelDistance?: string;
+  isReserved?: boolean;
+  showQRCode?: boolean;
+  isPaid?: boolean;
+  isPendingPayment?: boolean;
 }
 
 export interface FoodItem {
   id: string;
   name: string;
-  type: string; // 名店, 小吃, 點心, 必買
+  type: string;
   time: string;
   mapUrl: string;
   tags: string[];
   groupFriendly: boolean;
-  day: number; // 1, 2, 3, 4
+  day: number;
   description: string;
+  recommended: string; 
+}
+
+export interface SupermarketItem {
+  id: string;
+  name: string;
+  type: '超市' | '便利商店' | '藥妝店';
+  openingHours: string;
+  paymentMethods: string[];
+  description: string;
+  mapUrl: string;
+  day: number;
+  travelTime?: string;
+  travelDistance?: string;
 }
 
 export interface DayPlan {
@@ -54,4 +98,18 @@ export interface DayPlan {
   spots: Spot[];
   clothingTips: string;
   weatherTips: string;
+}
+
+export interface TimeWeather {
+  temp: string;
+  icon: string;
+  desc: string;
+}
+
+export interface WeatherForecast {
+  date: string;
+  morning: TimeWeather;
+  noon: TimeWeather;
+  night: TimeWeather;
+  clothingTip: string;
 }
