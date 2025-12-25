@@ -1,20 +1,7 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TabType, DayPlan, Spot, SpotCategory, FoodItem, WeatherForecast, SupermarketItem, ExpenseItem, ExpenseCategory } from './types';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import GoogleGenAIType from "@google/genai";
 import { INITIAL_ITINERARY, FEATURED_FOOD, DEFAULT_SUPERMARKETS } from './constants';
-import BottomNav from './components/BottomNav';
-import SpotModal from './components/SpotModal';
-import FoodModal from './components/FoodModal';
-import ExpenseModal from './components/ExpenseModal';
-import { GoogleGenAI, Type } from "@google/genai";
-import { 
-  Plane, Hotel, MapPin, CloudSun, Sun, Cloud, Plus, Coins,
-  Car, Info, ArrowRight, Utensils, Beer, Luggage, Clock, ShoppingBag, 
-  Navigation2, Moon, Lightbulb, Sparkles, PackageCheck, WashingMachine, 
-  Equal, MoveLeft, AlertTriangle, QrCode, ShieldCheck, Instagram, CreditCard, 
-  Trash2, Edit2, Soup, Wallet, Banknote, Search, Ban, XCircle, UserCheck,
-  ReceiptText, Minus, Divide, X, Loader2, SmartphoneCharging, BeerOff, RefreshCw, CheckCircle2
-} from 'lucide-react';
+
 
 const STORAGE_PREFIX = 'okinawa_v2026_final_stable';
 const KEYS = {
