@@ -6,7 +6,6 @@ import BottomNav from './components/BottomNav';
 import SpotModal from './components/SpotModal';
 import FoodModal from './components/FoodModal';
 import ExpenseModal from './components/ExpenseModal';
-import { GoogleGenAI } from "@google/genai";
 import { 
   Plane, Hotel, MapPin, CloudSun, Sun, Cloud, Plus, Coins,
   Car, Utensils, Navigation2, Moon, Sparkles, WashingMachine, 
@@ -16,7 +15,7 @@ import {
   Search, ShieldCheck, ExternalLink
 } from 'lucide-react';
 
-const STORAGE_PREFIX = 'okinawa_staff_v2026_final';
+const STORAGE_PREFIX = 'okinawa_v2026_final_no_ai';
 const KEYS = {
   ITINERARY: `${STORAGE_PREFIX}_itinerary`,
   FOOD: `${STORAGE_PREFIX}_food`,
@@ -33,6 +32,13 @@ const evaluateExpression = (expr: string): number => {
   } catch (e) { return 0; }
 };
 
+const STATIC_WEATHER: WeatherForecast[] = [
+  { date: '1/11 (日)', morning: { temp: '16°', icon: 'cloud', desc: '多雲' }, noon: { temp: '22°', icon: 'sun', desc: '晴' }, night: { temp: '17°', icon: 'moon', desc: '涼' }, clothingTip: '洋蔥式穿法' },
+  { date: '1/12 (一)', morning: { temp: '15°', icon: 'cloud', desc: '陰' }, noon: { temp: '21°', icon: 'sun', desc: '晴' }, night: { temp: '16°', icon: 'moon', desc: '涼' }, clothingTip: '海邊風強' },
+  { date: '1/13 (二)', morning: { temp: '17°', icon: 'sun', desc: '晴' }, noon: { temp: '23°', icon: 'sun', desc: '晴' }, night: { temp: '18°', icon: 'moon', desc: '涼' }, clothingTip: '適合外拍' },
+  { date: '1/14 (三)', morning: { temp: '16°', icon: 'cloud', desc: '多雲' }, noon: { temp: '20°', icon: 'cloud', desc: '陰' }, night: { temp: '17°', icon: 'moon', desc: '涼' }, clothingTip: '輕便保暖' }
+];
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>(TabType.OVERVIEW);
   const [selectedDay, setSelectedDay] = useState<number>(1);
@@ -48,11 +54,6 @@ const App: React.FC = () => {
   const [customRate, setCustomRate] = useState<string>(() => getSafeStorage(KEYS.RATE, '0.215'));
   const [calcDisplay, setCalcDisplay] = useState<string>('0');
   const [isTwdToJpy, setIsTwdToJpy] = useState<boolean>(false);
-  
-  // Weather Search States
-  const [weatherSearchInfo, setWeatherSearchInfo] = useState<string>('');
-  const [weatherLinks, setWeatherLinks] = useState<any[]>([]);
-  const [isWeatherSearching, setIsWeatherSearching] = useState(false);
 
   const [itinerary, setItinerary] = useState<DayPlan[]>(() => getSafeStorage(KEYS.ITINERARY, INITIAL_ITINERARY));
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => getSafeStorage(KEYS.FOOD, FEATURED_FOOD));
@@ -67,7 +68,9 @@ const App: React.FC = () => {
 
   const activeDayPlan = useMemo(() => itinerary.find(d => d.day === selectedDay), [itinerary, selectedDay]);
   const totalExpenseJpy = useMemo(() => expenses.reduce((s, i) => s + (i.amountJpy || 0), 0), [expenses]);
-  const totalExpenseTwd = useMemo(() => expenses.reduce((s, i) => s + (i.amountTwd || 0), 0), [expenses]);
+  
+  // 匯率計算機與支出金額一致化
+  const totalExpenseTwd = useMemo(() => Math.round(totalExpenseJpy * parseFloat(customRate)), [totalExpenseJpy, customRate]);
 
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
   const [editingSpot, setEditingSpot] = useState<Spot | null>(null);
@@ -76,44 +79,19 @@ const App: React.FC = () => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
 
-  const handleWeatherSearch = async () => {
-    setIsWeatherSearching(true);
-    setWeatherSearchInfo('');
-    setWeatherLinks([]);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: "請搜尋並顯示沖繩今日最新的天氣預報，包含溫度、降雨機率與穿著建議。",
-        config: {
-          tools: [{ googleSearch: {} }]
-        }
-      });
-      setWeatherSearchInfo(response.text || '未能獲取天氣資訊。');
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        setWeatherLinks(chunks.filter(c => c.web).map(c => c.web));
-      }
-    } catch (e) {
-      setWeatherSearchInfo('天氣搜尋失敗，請稍後再試。');
-    } finally {
-      setIsWeatherSearching(false);
-    }
-  };
-
   return (
     <div className="min-h-screen px-4 pt-10 pb-[100px] max-w-lg mx-auto overflow-x-hidden selection:bg-[#FFD93D]">
       <header className="mb-8 flex flex-col items-center">
         <div className="bg-[#FFD93D] px-8 py-3 rounded-[35px] comic-border rotate-[-1deg] mb-1.5 shadow-[4px_4px_0px_#2D3436]">
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase text-center text-pop">沖繩旅遊 Go！</h1>
         </div>
-        <span className="bg-slate-900 text-white px-4 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest mt-2 tracking-tight">2026.01.11 - 01.14 Staff Trip</span>
+        <span className="bg-slate-900 text-white px-4 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest mt-2 tracking-tight">2026.01.11 - 01.14 STAFF TRIP</span>
       </header>
 
       <main className="tab-content relative">
         {activeTab === TabType.OVERVIEW && (
           <div className="space-y-6 pb-4">
-            {/* 1. 航班資訊 - 第一格 */}
+            {/* 1. 航班資訊 */}
             <section className="comic-border p-5 bg-white rounded-[32px]">
               <div className="flex items-center gap-2 mb-4">
                 <div className="bg-[#4CB9E7] p-1.5 rounded-lg text-white shadow-sm"><Plane size={20} /></div>
@@ -122,8 +100,8 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-900">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[10px] font-black">1/11 FD230 (去程)</span>
-                    <div className="flex items-center gap-1.5 text-blue-600 font-black text-[10px]"><Luggage size={14}/> 托運 20kg / 7kg 手提</div>
+                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[10px] font-black">1/11 FD230</span>
+                    <div className="flex items-center gap-1.5 text-blue-600 font-black text-[10px]"><Luggage size={14}/> 托運 20kg</div>
                   </div>
                   <div className="flex justify-between items-center px-2">
                     <div className="text-center"><p className="text-[10px] text-slate-400 font-black">TPE</p><p className="text-2xl font-black">13:30</p></div>
@@ -133,20 +111,13 @@ const App: React.FC = () => {
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-900">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[10px] font-black">1/14 BR185 (回程)</span>
-                    <div className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px]"><Luggage size={14}/> 托運 23kg / 7kg 手提</div>
+                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[10px] font-black">1/14 BR185</span>
+                    <div className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px]"><Luggage size={14}/> 托運 23kg</div>
                   </div>
                   <div className="flex justify-between items-center px-2">
                     <div className="text-center"><p className="text-[10px] text-slate-400 font-black">OKA</p><p className="text-2xl font-black">20:20</p></div>
                     <div className="flex-1 px-4"><div className="w-full h-[2px] bg-slate-200"></div></div>
                     <div className="text-center"><p className="text-[10px] text-slate-400 font-black">TPE</p><p className="text-2xl font-black">21:10</p></div>
-                  </div>
-                </div>
-                <div className="bg-amber-50 p-4 rounded-2xl border-2 border-amber-500/20">
-                  <h3 className="text-xs font-black flex items-center gap-1.5 mb-2 text-amber-700"><ShieldAlert size={16}/> 航空安全提醒</h3>
-                  <div className="grid grid-cols-2 gap-2 text-[10px] font-black">
-                    <div className="bg-white/60 p-2 rounded-lg border border-amber-200">行動電源 (嚴禁托運)</div>
-                    <div className="bg-white/60 p-2 rounded-lg border border-amber-200">打火機 (限一隨身)</div>
                   </div>
                 </div>
               </div>
@@ -157,55 +128,34 @@ const App: React.FC = () => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h2 className="text-xl font-black flex items-center gap-2 text-[#2D3436] italic"><Hotel size={24} className="text-[#FFD93D]" /> 那霸逸之彩飯店</h2>
-                  <p className="text-[11px] font-black text-slate-400 mt-1">牧志站 1 分鐘 / 拉麵啤酒 Happy Hour</p>
+                  <p className="text-[11px] font-black text-slate-400 mt-1 italic">牧志站 1 分鐘 / 啤酒拉麵放題</p>
                 </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Okinawa+Hinode+Hotel" className="bg-[#4CB9E7] text-white p-3 rounded-2xl border-2 border-slate-900 comic-button shadow-[2px_2px_0px_#2D3436]"><Navigation2 size={24}/></a>
+                <a href="https://www.google.com/maps/search/?api=1&query=Okinawa+Hinode+Hotel" className="bg-[#4CB9E7] text-white p-3 rounded-2xl border-2 border-slate-900 shadow-[2px_2px_0px_#2D3436]"><Navigation2 size={24}/></a>
               </div>
               <div className="grid grid-cols-2 gap-3 text-[10px] font-black">
-                 <div className="bg-rose-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><Utensils size={14}/> 早餐 06:30+</div>
-                 <div className="bg-blue-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><Soup size={14}/> 宵夜拉麵 20:30+</div>
-                 <div className="bg-amber-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><Beer size={14}/> 啤酒暢飲 10-22h</div>
-                 <div className="bg-slate-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2 font-black"><WashingMachine size={14}/> 24h 洗衣</div>
+                 <div className="bg-rose-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2"><Utensils size={14}/> 早餐 06:30+</div>
+                 <div className="bg-blue-50 p-2.5 rounded-xl border-2 border-slate-900 flex items-center gap-2"><Soup size={14}/> 宵夜 20:30+</div>
               </div>
             </section>
 
-            {/* 3. 實時天氣搜尋 - 總覽下方 */}
-            <section className="comic-border p-5 bg-[#4CB9E7] text-white rounded-[32px]">
+            {/* 3. 天氣預報 - 移至總覽下方 (靜態) */}
+            <section className="comic-border p-5 bg-white rounded-[32px]">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-black flex items-center gap-2 italic uppercase tracking-wider"><CloudSun size={24} /> 沖繩今日天氣搜尋</h3>
-                <button 
-                  onClick={handleWeatherSearch} 
-                  disabled={isWeatherSearching}
-                  className="bg-white text-[#4CB9E7] p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#2D3436] active:translate-y-0.5 transition-all"
-                >
-                  {isWeatherSearching ? <RefreshCw size={18} className="animate-spin" /> : <Search size={18} />}
-                </button>
+                <h3 className="text-lg font-black flex items-center gap-2 text-indigo-600 italic uppercase tracking-wider"><CloudSun size={24} /> 旅遊天氣預報</h3>
+                <span className="text-[10px] font-black text-slate-300">更新於 01/10</span>
               </div>
-              
-              {isWeatherSearching ? (
-                <div className="flex flex-col items-center py-6 gap-2">
-                  <Loader2 size={32} className="animate-spin" />
-                  <p className="text-xs font-black animate-pulse">正在獲取最新天氣情報...</p>
-                </div>
-              ) : weatherSearchInfo ? (
-                <div className="space-y-4">
-                  <div className="bg-white/10 p-4 rounded-2xl border border-white/20">
-                    <p className="text-xs font-bold leading-relaxed whitespace-pre-wrap">{weatherSearchInfo}</p>
-                  </div>
-                  {weatherLinks.length > 0 && (
-                    <div className="flex flex-col gap-1.5">
-                      <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">參考來源：</p>
-                      {weatherLinks.map((link, idx) => (
-                        <a key={idx} href={link.uri} target="_blank" className="flex items-center gap-2 text-[10px] font-black bg-white/20 p-2 rounded-lg hover:bg-white/30 transition-all">
-                          <ExternalLink size={12} /> {link.title || '天氣資訊連結'}
-                        </a>
-                      ))}
+              <div className="space-y-3">
+                {STATIC_WEATHER.map(w => (
+                  <div key={w.date} className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border-2 border-slate-100">
+                    <span className="text-[11px] font-black italic w-16">{w.date}</span>
+                    <div className="flex items-center gap-3 flex-1 px-4">
+                      {w.noon.icon === 'sun' ? <Sun size={18} className="text-amber-400" /> : <Cloud size={18} className="text-slate-400" />}
+                      <span className="text-sm font-black italic">{w.noon.temp}</span>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-[10px] font-black opacity-80 italic text-center py-4">點擊放大鏡搜尋今日即時天氣與建議。</p>
-              )}
+                    <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{w.clothingTip}</span>
+                  </div>
+                ))}
+              </div>
             </section>
 
             {/* 4. 自駕守則 - 最後一格 */}
@@ -242,7 +192,7 @@ const App: React.FC = () => {
                 <div className="flex justify-between items-end mb-8 px-2">
                   <div>
                     <h2 className="text-2xl font-black italic text-slate-900">{activeDayPlan.title}</h2>
-                    <p className="text-[11px] font-black text-[#FF4747] mt-1">{activeDayPlan.date} | {activeDayPlan.clothingTips}</p>
+                    <p className="text-[11px] font-black text-[#FF4747] mt-1 italic">{activeDayPlan.date} | {activeDayPlan.clothingTips}</p>
                   </div>
                   <button onClick={() => { setEditingSpot(null); setIsSpotModalOpen(true); }} className="bg-[#4CB9E7] text-white px-5 py-2 rounded-full border-2 border-slate-900 text-xs font-black shadow-[3px_3px_0px_#2D3436]">+ 景點</button>
                 </div>
@@ -268,7 +218,7 @@ const App: React.FC = () => {
                           {spot.isPaid && <span className="flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full border border-slate-900 text-[8px] font-black italic tracking-tighter"><ShieldCheck size={10}/>已付</span>}
                         </div>
 
-                        {/* 修復備註顯示 */}
+                        {/* 備註對話框 - 確保顯示 */}
                         <div className="mt-4 p-3 bg-slate-50 border-2 border-slate-200 rounded-2xl relative shadow-inner">
                            <div className="absolute -top-2 left-4 w-3 h-3 bg-slate-50 border-l-2 border-t-2 border-slate-200 rotate-45"></div>
                            <p className="text-[11px] font-bold text-slate-600 italic whitespace-pre-wrap leading-relaxed">{spot.description || "暫無備註"}</p>
@@ -302,7 +252,7 @@ const App: React.FC = () => {
         {activeTab === TabType.SUPERMARKET && (
           <div className="space-y-6 pb-12">
             <h2 className="text-2xl font-black italic text-center text-[#4CB9E7] text-pop">飯店補給清單 🛒</h2>
-            <p className="text-center text-[10px] font-black text-slate-400 -mt-4">專為那霸逸之彩飯店規劃</p>
+            <p className="text-center text-[10px] font-black text-slate-400 -mt-4">牧志站周邊推薦</p>
             <div className="grid gap-5">
               {DEFAULT_SUPERMARKETS.map(shop => (
                 <div key={shop.id} className="comic-border p-5 bg-white rounded-[32px]">
@@ -312,7 +262,6 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap gap-2 my-3 text-[10px] font-black text-slate-500">
                     <span className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg"><RefreshCw size={12}/> {shop.openingHours}</span>
-                    <span className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg"><Wallet size={12}/> {shop.paymentMethods.join('/')}</span>
                   </div>
                   <p className="text-[11px] text-slate-400 mb-4 font-black">{shop.description}</p>
                   <a href={shop.mapUrl} className="w-full bg-[#2D3436] text-white py-3 rounded-xl flex items-center justify-center gap-2 font-black shadow-[3px_3px_0px_#4CB9E7] active:translate-y-0.5 transition-all"><Navigation2 size={18}/> 開啟導航</a>
@@ -355,7 +304,7 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-black italic text-center text-[#FFD93D] text-pop">台日幣換算器 💴</h2>
             <div className="comic-border p-5 bg-white rounded-[32px] border-slate-900">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase italic">匯率 1 JPY = {customRate} TWD</h3>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase italic">當前匯率 1 JPY = {customRate} TWD</h3>
                 <input type="number" step="0.001" className="w-24 bg-slate-50 text-base font-black text-right border-2 border-slate-900 rounded-xl px-2 py-1 focus:outline-none" value={customRate} onChange={e => setCustomRate(e.target.value)} />
               </div>
               <div className="flex flex-col gap-4">
